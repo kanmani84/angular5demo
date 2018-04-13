@@ -1,0 +1,2895 @@
+Chapter 2. Design and implement a storage and data strategy
+In this section, we’ll look at most of the various methods of handling data and state in Microsoft Azure. All of the different data options can be somewhat overwhelming. For the last several decades, application state was primarily stored in a relational database system, like Microsoft SQL Server. Microsoft Azure has non-relational storage products, like Azure Storage Tables, Azure CosmosDB, and Azure Redis Cache. You might ask yourself which data product do you choose? What are the differences between each one? How do I get started if I have little or no experience with one? This chapter will explain the differences between relational data stores, file storage, and JSON document storage. It will also help you get started with the various Azure data products.
+
+Skills in this chapter:
+
+Image Skill 2.1: Implement Azure Storage blobs and Azure files
+
+Image Skill 2.2: Implement Azure Storage tables and queues
+
+Image Skill 2.3. Manage access and monitor storage
+
+Image Skill 2.4: Implement Azure SQL Databases
+
+Image Skill 2.5: Implement Azure Cosmos DB
+
+Image Skill 2.6: Implement Redis caching
+
+Image Skill 2.7: Implement Azure Search
+
+SKILL 2.1: IMPLEMENT AZURE STORAGE BLOBS AND AZURE FILES
+File storage is incredibly useful in a wide variety of solutions for your organization. Whether storing sensor data from refrigeration trucks that check in every few minutes, storing resumes as PDFs for your company website, or storing SQL Server backup files to comply with a retention policy. Microsoft Azure provides several methods of storing files, including Azure Storage blobs and Azure Files. We will look at the differences between these products and teach you how to begin using each one.
+
+This skill covers how to:
+
+Image Create a blob storage account
+
+Image Read data and change data
+
+Image Set metadata on a container
+
+Image Store data using block and page blobss
+
+Image Stream data using blobs
+
+Image Access blobs securely
+
+Image Implement async blob copy
+
+Image Configure Content Delivery Network (CDN)
+
+Image Design blob hierarchies
+
+Image Configure custom domains
+
+Image Scale blob storage
+
+Image Implement blob leasing
+
+Image Create connections to files from on-premises or cloud-based Windows or Linux machines
+
+Image Shard large datasets
+
+Azure Storage blobs
+Azure Storage blobs are the perfect product to use when you have files that you’re storing using a custom application. Other developers might also write applications that store files in Azure Storage blobs, which is the storage location for many Microsoft Azure products, like Azure HDInsight, Azure VMs, and Azure Data Lake Analytics. Azure Storage blobs should not be used as a file location for users directly, like a corporate shared drive. Azure Storage blobs provide client libraries and a REST interface that allows unstructured data to be stored and accessed at a massive scale in block blobs.
+
+Create a blob storage account
+Sign in to the Azure portal.
+
+Click the green plus symbol on the left side.
+
+On the Hub menu, select New > Storage > Storage account–blob, file, table, queue.
+
+Click Create.
+
+Enter a name for your storage account.
+
+For most of the options, you can choose the defaults.
+
+Specify the Resource Manager deployment model. You should choose an Azure Resource Manager deployment. This is the newest deployment API. Classic deployment will eventually be retired.
+
+Your application is typically made up of many components, for instance a website and a database. These components are not separate entities, but one application. You want to deploy and monitor them as a group, called a resource group. Azure Resource Manager enables you to work with the resources in your solution as a group.
+
+Select the General Purpose type of storage account.
+
+There are two types of storage accounts: General purpose or Blob storage. General purpose storage type allows you to store tables, queues, and blobs all-in-one storage. Blob storage is just for blobs. The difference is that Blob storage has hot and cold tiers for performance and pricing and a few other features just for Blob storage. We’ll choose General Purpose so we can use table storage later.
+
+Under performance, specify the standard storage method. Standard storage uses magnetic disks that are lower performing than Premium storage. Premium storage uses solid-state drives.
+
+Storage service encryption will encrypt your data at rest. This might slow data access, but will satisfy security audit requirements.
+
+Secure transfer required will force the client application to use SSL in their data transfers.
+
+You can choose several types of replication options. Select the replication option for the storage account.
+
+The data in your Microsoft Azure storage account is always replicated to ensure durability and high availability. Replication copies your data, either within the same data center, or to a second data center, depending on which replication option you choose. For replication, choose carefully, as this will affect pricing. The most affordable option is Locally Redundant Storage (LRS).
+
+Select the subscription in which you want to create the new storage account.
+
+Specify a new resource group or select an existing resource group. Resource groups allow you to keep components of an application in the same area for performance and management. It is highly recommended that you use a resource group. All service placed in a resource group will be logically organized together in the portal. In addition, all of the services in that resource group can be deleted as a unit.
+
+Select the geographic location for your storage account. Try to choose one that is geographically close to you to reduce latency and improve performance.
+
+Click Create to create the storage account.
+
+Once created, you will have two components that allow you to interact with your Azure Storage account via an SDK. SDKs exist for several languages, including C#, JavaScript, and Python. In this module, we’ll focus on using the SDK in C#. Those two components are the URI and the access key. The URI will look like this: http://{your storage account name from step 4}.blob.core.windows.net.
+
+Your access key will look like this: KEsm421/uwSiel3dipSGGL124K0124SxoHAXq3jk124vuCjw35124fHRIk142WIbxbTmQrzIQdM4K5Zyf9ZvUg==
+
+Read and change data
+First, let’s use the Azure SDK for .NET to load data into your storage account.
+
+Create a console application.
+
+Use Nuget Package Manager to install WindowsAzure.Storage.
+
+In the Using section, add a using to Microsoft.WindowsAzure.Storage and Microsoft.WindowsAzure.Storage.Blob.
+
+Create a storage account in your application like this:
+
+Click here to view code image
+
+CloudStorageAccount storageAccount;
+
+storageAccount =
+
+ CloudStorageAccount.Parse("DefaultEndpointsProtocol=https;AccountName={your
+
+ storage account name};AccountKey={your storage key}");
+
+Azure Storage blobs are organized with containers. Each storage account can have an unlimited amount of containers. Think of containers like folders, but they are very flat with no sub-containers. In order to load blobs into an Azure Storage account, you must first choose the container.
+
+Create a container using the following code:
+
+Click here to view code image
+
+CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+
+CloudBlobContainer container = blobClient.GetContainerReference("democontainerblo
+ckblob");
+try
+{
+     await container.CreateIfNotExistsAsync();
+}
+catch (StorageException ex)
+{
+
+     Console.WriteLine(ex.Message);
+     Console.ReadLine();
+     throw;
+}
+
+In the following code, you need to set the path of the file you want to upload using the ImageToUpload variable.
+
+Click here to view code image
+
+const string ImageToUpload = @"C:\temp\HelloWorld.png";
+CloudBlockBlob blockBlob = container.GetBlockBlobReference("HelloWorld.png");
+// Create or overwrite the "myblob" blob with contents from a local file.
+using (var fileStream = System.IO.File.OpenRead(ImageToUpload))
+{
+     blockBlob.UploadFromStream(fileStream);
+}
+
+Every blob has an individual URI. By default, you can gain access to that blob as long as you have the storage account name and the access key. We can change the default by changing the Access Policy of the Azure Storage blob container. By default, containers are set to private. They can be changed to either blob or container. When set to Public Container, no credentials are required to access the container and its blobs. When set to Public Blob, only blobs can be accessed without credentials if the full URL is known. We can read that blob using the following code:
+
+Click here to view code image
+
+foreach (IListBlobItem blob in container.ListBlobs())
+
+{
+
+    Console.WriteLine("- {0} (type: {1})", blob.Uri, blob.GetType());
+
+}
+
+Note how we use the container to list the blobs to get the URI. We also have all of the information necessary to download the blob in the future.
+
+Set metadata on a container
+Metadata is useful in Azure Storage blobs. It can be used to set content types for web artifacts or it can be used to determine when files have been updated. There are two different types of metadata in Azure Storage Blobs: System Properties and User-defined Metadata. System properties give you information about access, file types, and more. Some of them are read-only. User-defined metadata is a key-value pair that you specify for your application. Maybe you need to make a note of the source, or the time the file was processed. Data like that is perfect for user-defined metadata.
+
+Blobs and containers have metadata attached to them. There are two forms of metadata:
+
+Image System properties metadata
+
+Image User-defined metadata
+
+System properties can influence how the blob behaves, while user-defined metadata is your own set of name/value pairs that your applications can use. A container has only read-only system properties, while blobs have both read-only and read-write properties.
+
+Setting user-defined metadata
+To set user-defined metadata for a container, get the container reference using GetContainerReference(), and then use the Metadata member to set values. After setting all the desired values, call SetMetadata() to persist the values, as in the following example:
+
+Click here to view code image
+
+CloudBlobClient blobClient = storageAccount.CreateCloudBlobClient();
+
+CloudBlobContainer container =
+
+blobClient.GetContainerReference("democontainerblockblob");
+
+container.Metadata.Add("counter", "100");container.SetMetadata();
+
+More Info: Blob Metadata
+
+Blob metadata includes both read-only and read-write properties that are valid HTTP headers and follow restrictions governing HTTP headers. The total size of the metadata is limited to 8 KB for the combination of name and value pairs. For more information on interacting with individual blob metadata, see https://docs.microsoft.com/en-us/azure/storage/blobs/storage-properties-metadata.
+
+Reading user-defined metadata
+To read user-defined metadata for a container, get the container reference using GetContainerReference(), and then use the Metadata member to retrieve a dictionary of values and access them by key, as in the following example:
+
+Click here to view code image
+
+container.FetchAttributes();
+
+
+
+foreach (var metadataItem in container.Metadata)
+
+{
+
+     Console.WriteLine("\tKey: {0}", metadataItem.Key);
+
+     Console.WriteLine("\tValue: {0}", metadataItem.Value);
+
+}
+
+Image
+
+Exam Tip
+
+If the metadata key doesn’t exist, an exception is thrown.
+
+Reading system properties
+To read a container’s system properties, first get a reference to the container using GetContainerReference(), and then use the Properties member to retrieve values. The following code illustrates accessing container system properties:
+
+Click here to view code image
+
+container = blobClient.GetContainerReference("democontainerblockblob");
+
+container.FetchAttributes();
+
+Console.WriteLine("LastModifiedUTC: " + container.Properties.LastModified);
+
+Console.WriteLine("ETag: " + container.Properties.ETag);
+
+More Info: Container Metadata and the Storage API
+
+You can request container metadata using the Storage API. For more information on this and the list of system properties returned, see http://msdn.microsoft.com/en-us/library/azure/dd179370.aspx.
+
+Store data using block and page blobs
+There are three types of blobs used in Azure Storage Blobs: Block, Append, and Page. Block blobs are used to upload large files. They are comprised of blocks, each with its own block ID. Because the blob is divided up in blocks, it allows for easy updating or resending when transferring large files. You can insert, replace, or delete an existing block in any order. Once a block is updated, added, or removed, the list of blocks needs to be committed for the file to actually record the update.
+
+Page blobs are comprised of 512-byte pages that are optimized for random read and write operations. Writes happen in place and are immediately committed. Page blobs are good for VHDs in Azure VMs and other files that have frequent, random access.
+
+Append blobs are optimized for append operations. Append blobs are good for logging and streaming data. When you modify an append blob, blocks are added to the end of the blob.
+
+In most cases, block blobs will be the type you will use. Block blobs are perfect for text files, images, and videos.
+
+A previous section demonstrated how to interact with a block blob. Here’s how to write a page blob:
+
+Click here to view code image
+
+string pageBlobName = "random";
+
+CloudPageBlob pageBlob = container.GetPageBlobReference(pageBlobName);
+
+await pageBlob.CreateAsync(512 * 2 /*size*/); // size needs to be multiple of 512 bytes
+
+
+
+byte[] samplePagedata = new byte[512];
+
+Random random = new Random();
+
+random.NextBytes(samplePagedata);
+
+await pageBlob.UploadFromByteArrayAsync(samplePagedata, 0, samplePagedata.Length);
+
+To read a page blob, use the following code:
+
+Click here to view code image
+
+int bytesRead = await pageBlob.DownloadRangeToByteArrayAsync(samplePagedata,
+
+ 0, 0, samplePagedata.Count());
+
+Stream data using blobs
+You can stream blobs by downloading to a stream using the DownloadToStream() API method. The advantage of this is that it avoids loading the entire blob into memory, for example before saving it to a file or returning it to a web request.
+
+Access blobs securely
+Secure access to blob storage implies a secure connection for data transfer and controlled access through authentication and authorization.
+
+Azure Storage supports both HTTP and secure HTTPS requests. For data transfer security, you should always use HTTPS connections. To authorize access to content, you can authenticate in three different ways to your storage account and content:
+
+Image Shared Key Constructed from a set of fields related to the request. Computed with a SHA-256 algorithm and encoded in Base64.
+
+Image Shared Key Lite Similar to Shared Key, but compatible with previous versions of Azure Storage. This provides backwards compatibility with code that was written against versions prior to 19 September 2009. This allows for migration to newer versions with minimal changes.
+
+Image Shared Access Signature Grants restricted access rights to containers and blobs. You can provide a shared access signature to users you don’t trust with your storage account key. You can give them a shared access signature that will grant them specific permissions to the resource for a specified amount of time. This is discussed in a later section.
+
+To interact with blob storage content authenticated with the account key, you can use the Storage Client Library as illustrated in earlier sections. When you create an instance of the CloudStorageAccount using the account name and key, each call to interact with blob storage will be secured, as shown in the following code:
+
+Click here to view code image
+
+string accountName = "ACCOUNTNAME";
+
+string accountKey = "ACCOUNTKEY";
+
+CloudStorageAccount storageAccount = new CloudStorageAccount(new
+
+StorageCredentials(accountName, accountKey), true);
+
+Implement Async blob copy
+It is possible to copy blobs between storage accounts. You may want to do this to create a point-in-time backup of your blobs before a dangerous update or operation. You may also want to do this if you’re migrating files from one account to another one. You cannot change blob types during an async copy operation. Block blobs will stay block blobs. Any files with the same name on the destination account will be overwritten.
+
+Blob copy operations are truly asynchronous. When you call the API and get a success message, this means the copy operation has been successfully scheduled. The success message will be returned after checking the permissions on the source and destination accounts.
+
+You can perform a copy in conjunction with the Shared Access Signature method of gaining permissions to the account. We’ll cover that security method in a later topic.
+
+Configure a Content Delivery Network with Azure Blob Storage
+A Content Delivery Network (CDN) is used to cache static files to different parts of the world. For instance, let’s say you were developing an online catalog for a retail organization with a global audience. Your main website was hosted in western United States. Users of the application in Florida complain of slowness while users in Washington state compliment you for how fast it is. A CDN would be a perfect solution for serving files close to the users, without the added latency of going across country. Once files are hosted in an Azure Storage Account, a configured CDN will store and replicate those files for you without any added management. The CDN cache is perfect for style sheets, documents, images, JavaScript files, packages, and HTML pages.
+
+After creating an Azure Storage Account like you did earlier, you must configure it for use with the Azure CDN service. Once that is done, you can call the files from the CDN inside the application.
+
+To enable the CDN for the storage account, follow these steps:
+
+In the Storage Account navigation pane, find Azure CDN towards the bottom. Click on it.
+
+Create a new CDN endpoint by filling out the form that popped up.
+
+Azure CDN is hosted by two different CDN networks. These are partner companies that actually host and replicate the data. Choosing a correct network will affect the features available to you and the price you pay. No matter which tier you use, you will only be billed through the Microsoft Azure Portal, not through the third-party. There are three pricing tiers:
+
+Image Premium Verizon The most expensive tier. This tier offers advanced real-time analytics so you can know what users are hitting what content and when.
+
+Image Standard Verizon The standard CDN offering on Verizon’s network.
+
+Image Standard Akamai The standard CDN offering on Akamai’s network.
+
+Specify a Profile and an endpoint name. After the CDN endpoint is created, it will appear on the list above.
+
+Once this is done, you can configure the CDN if needed. For instance, you can use a custom domain name is it looks like your content is coming from your website.
+
+Once the CDN endpoint is created, you can reference your files using a path similar to the following:
+
+Click here to view code image
+
+Error! Hyperlink reference not valid.>
+
+If a file needs to be replaced or removed, you can delete it from the Azure Storage blob container. Remember that the file is being cached in the CDN. It will be removed or updated when the Time-to-Live (TTL) expires. If no cache expiry period is specified, it will be cached in the CDN for seven days. You set the TTL is the web application by using the clientCache element in the web.config file. Remember when you place that in the web.config file it affects all folders and subfolders for that application.
+
+Design blob hierarchies
+Azure Storage blobs are stored in containers, which are very flat. This means that you cannot have child containers contained inside a parent container. This can lead to organizational confusion for users who rely on folders and subfolders to organize files.
+
+A hierarchy can be replicated by naming the files something that’s similar to a folder structure. For instance, you can have a storage account named “sally.” Your container could be named “pictures.” Your file could be named “product1\mainFrontPanel.jpg.” The URI to your file would look like this: http://sally.blob.core.windows.net/pictures/product1/mainFrontPanel.jpg
+
+In this manner, a folder/subfolder relationship can be maintained. This might prove useful in migrating legacy applications over to Azure.
+
+Configure custom domains
+The default endpoint for Azure Storage blobs is: (Storage Account Name).blob.core.windows.net. Using the default can negatively affect SEO. You might also not want to make it obvious that you are hosting your files in Azure. To obfuscate this, you can configure Azure Storage to respond to a custom domain. To do this, follow these steps:
+
+Navigate to your storage account in the Azure portal.
+
+On the navigation pane, find BLOB SERVICE. Click Custom Domain.
+
+Check the Use Indirect CNAME Validation check box. We use this method because it does not incur any downtime for your application or website.
+
+Log on to your DNS provider. Add a CName record with the subdomain alias that includes the Asverify subdomain. For example, if you are holding pictures in your blob storage account and you want to note that in the URL, then the CName would be Asverify.pictures (your custom domain including the .com or .edu, etc.) Then provide the hostname for the CNAME alias, which would also include Asverify. If we follow the earlier example of pictures, the hostname URL would be sverify.pictures.blob.core.windows.net. The hostname to use appears in #2 of the Custom domain blade in the Azure portal from the previous step.
+
+In the text box on the Custom domain blade, enter the name of your custom domain, but without the Asverify. In our example, it would be pictures.(your custom domain including the .com or .edu, etc.) .
+
+Select Save.
+
+Now return to your DNS provider’s website and create another CNAME record that maps your subdomain to your blob service endpoint. In our example, we can make pictures.(your custom domain) point to pictures.blob.core.windows.net.
+
+Now you can delete the azverify CName now that it has been verified by Azure.
+
+Why did we go through the azverify steps? We were allowing Azure to recognize that you own that custom domain before doing the redirection. This allows the CNAME to work with no downtime.
+
+In the previous example, we referenced a file like this: http://sally.blob.core.windows.net/pictures/product1/mainFrontPanel.jpg.
+
+With the custom domain, it would now look like this: http://pictures.(your custom domain)/pictures/product1/mainFrontPanel.jpg.
+
+Scale blob storage
+We can scale blob storage both in terms of storage capacity and performance. Each Azure subscription can have 200 storage accounts, with 500TB of capacity each. That means that each Azure subscription can have 100 petabytes of data in it without creating another subscription.
+
+An individual block blob can have 50,000 100MB blocks with a total size of 4.75TB. An append blob has a max size of 195GB. A page blob has a max size of 8TB.
+
+In order to scale performance, we have several features available to us. We can implement an Azure CDN to enable geo-caching to keep blobs close to the users. We can implement read access geo-redundant storage and offload some of the reads to another geographic location (thus creating a mini-CDN that will be slower, but cheaper).
+
+Azure Storage blobs (and tables, queues, and files, too) have an amazing feature. By far, the most expensive services for most cloud vendors is compute time. You pay for how many and how fast the processors are in the service you are using. Azure Storage doesn’t charge for compute. It only charges for disk space used and network bandwidth (which is a fairly nominal charge). Azure Storage blobs are partitioned by storage account name + container name + blob name. This means that each blob is retrieved by one and only one server. Many small files will perform better in Azure Storage than one large file. Blobs use containers for logical grouping, but each blob can be retrieved by different compute resources, even if they are in the same container.
+
+Azure files
+Azure file storage provides a way for applications to share storage accessible via SMB 2.1 protocol. It is particularly useful for VMs and cloud services as a mounted share, and applications can use the File Storage API to access file storage.
+
+More Info: File Storage Documentation
+
+For additional information on file storage, see the guide at: http://azure.microsoft.com/en-us/documentation/articles/storage-dotnet-how-to-use-files/.
+
+Implement blob leasing
+You can create a lock on a blob for write and delete operations. The lock can be between 15 and 60 seconds or it can be infinite. To write to a blob with an active lease, the client must include the active lease ID with the request.
+
+When a client requests a lease, a lease ID is returned. The client may then use this lease ID to renew, change, or release the lease. When the lease is active, the lease ID must be included to write to the blob, set any meta data, add to the blob (through append), copy the blob, or delete the blob. You may still read a blob that has an active lease ID to another client and without using the lease ID.
+
+The code to acquire a lease looks like the following example (assuming the blockBlob variable was instantiated earlier):
+
+Click here to view code image
+
+TimeSpan? leaseTime = TimeSpan.FromSeconds(60);
+
+string leaseID = blockBlob.AcquireLease(leaseTime, null);
+
+Create connections to files from on-premises or cloudbased Windows or, Linux machines
+Azure Files can be used to replace on-premise file servers or NAS devices. You can connect to Azure Files using Windows, Linux, or MacOS.
+
+You can mount an Azure File share using Windows File Explorer, PowerShell, or the Command Prompt. To use File Explorer, follow these steps:
+
+Open File Explorer
+
+Under the computer menu, click Map Network Drive (see Figure 2-1).
+
+Image
+FIGURE 2-1 Map network Drive
+
+Copy the UNC path from the Connect pane in the Azure portal, as shown in Figure 2-2.
+
+Image
+FIGURE 2-2 Azure portal UNC path
+
+Select the drive letter and enter the UNC path.
+
+Use the storage account name prepended with Azure\ as the username and the Storage Account Key as the password (see Figure 2-3).
+
+Image
+FIGURE 2-3 Login credentials for Azure Files
+
+The PowerShell code to map a drive to Azure Files looks like this:
+
+Click here to view code image
+
+$acctKey = ConvertTo-SecureString -String "<storage-account-key>" -AsPlainText
+
+-Force
+
+$credential = New-Object System.Management.Automation.PSCredential -ArgumentList
+
+ "Azure\<storage-account-name>", $acctKey
+
+New-PSDrive -Name <desired-drive-letter> -PSProvider FileSystem -Root
+
+"\\<storage-account-name>.file.core.windows.net\<share-name>" -Credential $credential
+
+To map a drive using a command prompt, use a command that looks like this:
+
+Click here to view code image
+
+net use <desired-drive-letter>: \\<storage-account-name>.file.core.windows.net
+
+\<share-name> <storage-account-key> /user:Azure\<storage-account-name>
+
+To use Azure Files on a Linux machine, first install the cifs-utils package. Then create a folder for a mount point using mkdir. Afterwards, use the mount command with code similar to the following:
+
+Click here to view code image
+
+sudo mount -t cifs //<storage-account-name>.file.core.windows.net/<share-name>
+
+ ./mymountpoint -o vers=2.1,username=<storage-account-name>,password=<storage-
+
+account-key>,dir_mode=0777,file_mode=0777,serverino
+
+Shard large datasets
+Each blob is held in a container in Azure Storage. You can use containers to group related blobs that have the same security requirements. The partition key of a blob is account name + container name + blob name. Each blob can have its own partition if load on the blob demands it. A single blob can only be served by a single server. If sharding is needed, you need to create multiple blobs.
+
+SKILL 2.2: IMPLEMENT AZURE STORAGE TABLES, QUEUES, AND AZURE COSMOS DB TABLE API
+Azure Tables are used to store simple tabular data at petabyte scale on Microsoft Azure. Azure Queue storage is used to provide messaging between application components so they can be de-coupled and scale under heavy load.
+
+This skill covers how to:
+
+Image Implement CRUD with and without transactions;
+
+Image Design and manage partitions;
+
+Image Query using OData;
+
+Image Designing, managing, and scaling tablepartitions;
+
+Image Add and process queue messages;
+
+Image Retrieve a batch of messages;
+
+Image Scale queues
+
+Image Choose between Azure Storage Tables and Azure Cosmos DB Table API
+
+Azure Table Storage
+Azure Tables are simple tables filled with rows and columns. They are a key-value database solution, which references how the data is stored and retrieved, not how complex the table can be. Tables store data as a collection of entities. Each entity has a property. Azure Tables can have 255 properties (or columns to hijack the relational vocabulary). The total entity size (or row size) cannot exceed 1MB. That might seem small initially, but 1MB can store a lot of tabular data per entity. Azure Tables are similar to Azure Storage blobs, in that you are not charged for compute time for inserting, updating, or retrieving your data. You are only charged for the total storage of your data.
+
+Azure Tables are stored in the same storage account as Azure Storage blobs discussed earlier. Where blobs organize data based on container, Azure Tables organize data based on table name. Entities that are functionally the same should be stored in the same table. For example, all customers should be stored in the Customers table, while their orders should be stored in the Orders table.
+
+Azure Tables store entities based on a partition key and a row key. Partition keys are the partition boundary. All entities stored with the same PartitionKey property are grouped into the same partition and are served by the same partition server. Choosing the correct partition key is a key responsibility of the Azure developer. Having a few partitions will improve scalability, as it will increase the number of partition servers handling your requests. Having too many partitions, however, will affect how you do batch operations like batch updates or large data retrieval. We will discuss this further at the end of this section.
+
+Later in this chapter, we will discuss Azure SQL Database. Azure SQL Database also allows you to store tabular data. Why would you use Azure Tables vs Azure SQL Database? Why have two products that have similar functions? Well, actually they are very different.
+
+Azure Tables service does not enforce any schema for tables. It simply stores the properties of your entity based on the partition key and the row key. If the data in the entity matches the data in your object model, your object is populated with the right values when the data is retrieved. Developers need to enforce the schema on the client side. All business logic for your application should be inside the application and not expected to be enforced in Azure Tables. Azure SQL Database also has an incredible amount of features that Azure Tables do not have including: stored procedures, triggers, indexes, constraints, functions, default values, row and column level security, SQL injection detection, and much, much more.
+
+If Azure Tables are missing all of these features, why is the service so popular among developers? As we said earlier, you are not charged for compute resources when using Azure Tables, and you are charged in Azure SQL DB. This makes Azure Tables extremely affordable for large datasets. If we effectively use table partitioning, Azure Tables will also scale very well without sacrificing performance.
+
+Now that you have a good overview of Azure Tables, let’s dive right in and look at using it. If you’ve been following along through Azure Storage blobs, some of this code will be familiar to you.
+
+Using basic CRUD operations
+In this section, you learn how to access table storage programmatically.
+
+Creating a table
+Create a C# console application.
+
+In your app.config file, add an entry under the Configuration element, replacing the account name and key with your own storage account details:
+
+Click here to view code image
+
+<configuration>
+
+  <appSettings>
+
+    <add key="StorageConnectionString" value="DefaultEndpointsProtocol=
+
+https;AccountName=<your account name>;AccountKey=<your account key>" />
+
+  </appSettings>
+
+</configuration>
+
+Use NuGet to obtain the Microsoft.WindowsAzure.Storage.dll. An easy way to do this is by using the following command in the NuGet console:
+
+Install-package windowsazure.storage
+
+Add the following using statements to the top of your Program.cs file:
+
+Click here to view code image
+
+using Microsoft.WindowsAzure.Storage;
+
+using Microsoft.WindowsAzure.Storage.Auth;
+
+using Microsoft.WindowsAzure.Storage.Table;
+
+using Microsoft.WindowsAzure;
+
+using System.Configuration;
+
+Add a reference to System.Configuration.
+
+Type the following command to retrieve your connection string in the Main function of Program.cs:
+
+Click here to view code image
+
+var storageAccount =CloudStorageAccount.Parse
+
+( ConfigurationManager.AppSettings["StorageConnectionString"]);
+
+Use the following command to create a table if one doesn’t already exist:
+
+Click here to view code image
+
+CloudTableClient tableClient = storageAccount.CreateCloudTableClient();
+
+CloudTable table = tableClient.GetTableReference("orders");
+
+table.CreateIfNotExists();
+
+Inserting records
+To add entries to a table, you create objects based on the TableEntity base class and serialize them into the table using the Storage Client Library. The following properties are provided for you in this base class:
+
+Image Partition Key Used to partition data across storage infrastructure
+
+Image Row Key Unique identifier in a partition
+
+Image Timestamp Time of last update maintained by Azure Storage
+
+Image ETag Used internally to provide optimistic concurrency
+
+The combination of partition key and row key must be unique within the table. This combination is used for load balancing and scaling, as well as for querying and sorting entities.
+
+Follow these steps to add code that inserts records:
+
+Add a class to your project, and then add the following code to it:
+
+Click here to view code image
+
+using System;
+
+using Microsoft.WindowsAzure.Storage.Table;
+
+public class OrderEntity : TableEntity
+
+{
+
+ public OrderEntity(string customerName, string orderDate)
+
+ {
+
+  this.PartitionKey = customerName;
+
+  this.RowKey = orderDate;
+
+ }
+
+ public OrderEntity() { }
+
+  public string OrderNumber { get; set; }
+
+  public DateTime RequiredDate { get; set; }
+
+  public DateTime ShippedDate { get; set; }
+
+  public string Status { get; set; }
+
+}
+
+Add the following code to the console program to insert a record:
+
+Click here to view code image
+
+CloudTableClient tableClient = storageAccount.CreateCloudTableClient();
+
+
+
+CloudTable table = tableClient.GetTableReference("orders");
+
+
+
+OrderEntity newOrder = new OrderEntity("Archer", "20141216");
+
+
+
+newOrder.OrderNumber = "101";
+
+
+
+newOrder.ShippedDate = Convert.ToDateTime("12/18/2017");
+
+
+
+newOrder.RequiredDate = Convert.ToDateTime("12/14/2017");
+
+
+
+newOrder.Status = "shipped";
+
+
+
+TableOperation insertOperation = TableOperation.Insert(newOrder);
+
+
+
+table.Execute(insertOperation);
+
+Inserting multiple records in a transaction
+You can group inserts and other operations into a single batch transaction. All operations in the batch must take place on the same partition. You can have up to 100 entities in a batch. The total batch payload size cannot be greater than four MBs.
+
+The following code illustrates how to insert several records as part of a single transaction. This is done after creating a storage account object and table.:
+
+Click here to view code image
+
+TableBatchOperation batchOperation = new TableBatchOperation();
+
+
+
+OrderEntity newOrder1 = new OrderEntity("Lana", "20141217");
+
+newOrder1.OrderNumber = "102";
+
+newOrder1.ShippedDate = Convert.ToDateTime("1/1/1900");
+
+newOrder1.RequiredDate = Convert.ToDateTime("1/1/1900");
+
+newOrder1.Status = "pending";
+
+OrderEntity newOrder2 = new OrderEntity("Lana", "20141218");
+
+newOrder2.OrderNumber = "103";
+
+newOrder2.ShippedDate = Convert.ToDateTime("1/1/1900");
+
+newOrder2.RequiredDate = Convert.ToDateTime("12/25/2014");
+
+newOrder2.Status = "open";
+
+OrderEntity newOrder3 = new OrderEntity("Lana", "20141219");
+
+newOrder3.OrderNumber = "103";
+
+newOrder3.ShippedDate = Convert.ToDateTime("12/17/2014");
+
+newOrder3.RequiredDate = Convert.ToDateTime("12/17/2014");
+
+newOrder3.Status = "shipped";
+
+batchOperation.Insert(newOrder1);
+
+batchOperation.Insert(newOrder2);
+
+batchOperation.Insert(newOrder3);
+
+table.ExecuteBatch(batchOperation);
+
+More Info: Entity Group Transactions
+
+You can batch transactions that belong to the same table and partition group for insert, update, merge, delete, and related actions programmatically or by using the Storage API. For more information, see the reference at http://msdn.microsoft.com/en-us/library/dd894038.aspx.
+
+Getting records in a partition
+You can select all of the entities in a partition or a range of entities by partition and row key. Wherever possible, you should try to query with the partition key and row key. Querying entities by other properties does not work well because it launches a scan of the entire table.
+
+Within a table, entities are ordered within the partition key. Within a partition, entities are ordered by the row key. RowKey is a string property, so sorting is handled as a string sort. If you are using a date value for your RowKey property use the following order: year, month, day. For instance, use 20140108 for January 8, 2014.
+
+The following code requests all records within a partition using the PartitionKey property to query:
+
+Click here to view code image
+
+TableQuery<OrderEntity> query = new TableQuery<OrderEntity>().Where(
+
+TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, "Lana"));
+
+
+
+foreach (OrderEntity entity in table.ExecuteQuery(query))
+
+{
+
+ Console.WriteLine("{0}, {1}\t{2}\t{3}", entity.PartitionKey, entity.RowKey,
+
+ entity.Status, entity.RequiredDate);
+
+}
+
+Console.ReadKey();
+
+Updating records
+One technique you can use to update a record is to use InsertOrReplace(). This creates the record if one does not already exist or updates an existing record, based on the partition key and the row key. In this example, we retrieve a record we inserted during the batch insert example, change the status and shippedDate property and then execute an InsertOrReplace operation:
+
+Click here to view code image
+
+TableOperation retrieveOperation = TableOperation.Retrieve<OrderEntity>("Lana",
+
+"20141217");
+
+TableResult retrievedResult = table.Execute(retrieveOperation);
+
+OrderEntity updateEntity = (OrderEntity)retrievedResult.Result;
+
+if (updateEntity != null)
+
+{
+
+  updateEntity.Status = "shipped";
+
+  updateEntity.ShippedDate = Convert.ToDateTime("12/20/2014");
+
+  TableOperation insertOrReplaceOperation = TableOperation.
+
+InsertOrReplace(updateEntity);
+
+  table.Execute(insertOrReplaceOperation);
+
+}
+
+Deleting a record
+To delete a record, first retrieve the record as shown in earlier examples, and then delete it with code, such as assuming deleteEntity is declared and populated similar to how we created one earlier:
+
+Click here to view code image
+
+TableOperation deleteOperation = TableOperation.Delete(deleteEntity);
+
+table.Execute(deleteOperation);
+
+Console.WriteLine("Entity deleted.");
+
+Querying using ODATA
+The Storage API for tables supports OData, which exposes a simple query interface for interacting with table data. Table storage does not support anonymous access, so you must supply credentials using the account key or a Shared Access Signature (SAS) (discussed in “Manage Access”) before you can perform requests using OData.
+
+To query what tables you have created, provide credentials, and issue a GET request as follows:
+
+Click here to view code image
+
+https://myaccount.table.core.windows.net/Tables
+
+To query the entities in a specific table, provide credentials, and issue a GET request formatted as follows:
+
+Click here to view code image
+
+   https://<your account name>.table.core.windows.net/<your table
+
+name>(PartitionKey=’<partition-key>’,RowKey=’<row-key>’)?$select=
+
+<comma separated
+
+property names>
+
+Note: Query Limitations
+
+The result is limited to 1,000 entities per request, and the query will run for a maximum of five seconds.
+
+More Info: Odata
+
+For more information on OData, see the reference at http://msdn.microsoft.com/en-us/library/azure/dn535600.aspx.
+
+Designing, managing, and scaling table partitions
+The Azure Table service can scale to handle massive amounts of structured data and billions of records. To handle that amount, tables are partitioned. The partition key is the unit of scale for storage tables. The table service will spread your table to multiple servers and key all rows with the same partition key co-located. Thus, the partition key is an important grouping, not only for querying but also for scalability.
+
+There are three types of partition keys to choose from:
+
+Image Single value There is one partition key for the entire table. This favors a small number of entities. It also makes batch transactions easier since batch transactions need to share a partition key to run without error. It does not scale well for large tables since all rows will be on the same partition server.
+
+Image Multiple values This might place each partition on its own partition server. If the partition size is smaller, it’s easier for Azure to load balance the partitions. Partitions might get slower as the number of entities increases. This might make further partitioning necessary at some point.
+
+Image Unique values This is many small partitions. This is highly scalable, but batch transactions are not possible.
+
+For query performance, you should use the partition key and row key together when possible. This leads to an exact row match. The next best thing is to have an exact partition match with a row range. It is best to avoid scanning the entire table.
+
+Azure Storage Queues
+The Azure Storage Queue service provides a mechanism for reliable inter-application messaging to support asynchronous distributed application workflows. This section covers a few fundamental features of the Queue service for adding messages to a queue, processing those messages individually or in a batch, and scaling the service.
+
+More Info: Queue Service
+
+For a general overview of working with the Queue service, see the reference at http://azure.microsoft.com/en-us/documentation/articles/storage-dotnet-how-to-use-queues/.
+
+Adding messages to a queue
+You can access your storage queues and add messages to a queue using many storage browsing tools; however, it is more likely you will add messages programmatically as part of your application workflow.
+
+The following code demonstrates how to add messages to a queue. In order to use it, you will need a using statement for Microsoft.WindowsAzure.Storage.Queue. You can also create a queue in the portal called, “queue:”
+
+Click here to view code image
+
+CloudQueueClient queueClient = storageAccount.CreateCloudQueueClient();
+
+
+
+//This code assumes you have a queue called "queue" already. If you don’t have one, you
+
+should call queue.CreateIfNotExists();
+
+
+
+CloudQueue queue = queueClient.GetQueueReference("queue");
+
+queue.AddMessage(new CloudQueueMessage("Queued message 1"));
+
+queue.AddMessage(new CloudQueueMessage("Queued message 2"));
+
+queue.AddMessage(new CloudQueueMessage("Queued message 3"));
+
+In the Azure Portal, you can browse to your storage account, browse to Queues, click the queue in the list and see the above messages.
+
+Note: Message Identifiers
+
+The Queue service assigns a message identifier to each message when it is added to the queue. This is opaque to the client, but it is used by the Storage Client Library to identify a message uniquely when retrieving, processing, and deleting messages.
+
+More Info: Large Messages
+
+There is a limit of 64 KB per message stored in a queue. It is considered best practice to keep the message small and to store any required data for processing in a durable store, such as SQL Azure, storage tables, or storage blobs. This also increases system reliability since each queued message can expire after seven days if not processed. For more information, see the reference at https://docs.microsoft.com/en-us/azure/service-bus-messaging/service-bus-azure-and-service-bus-queues-compared-contrasted.
+
+Processing messages
+Messages are typically published by a separate application in the system from the application that listens to the queue and processes messages. As shown in the previous section, you can create a CloudQueue reference and then proceed to call GetMessage() to de-queue the next available message from the queue as follows:
+
+Click here to view code image
+
+CloudQueueMessage message = queue.GetMessage(new TimeSpan(0, 5, 0));
+
+if (message != null)
+
+{
+
+ string theMessage = message.AsString;
+
+ // your processing code goes here
+
+}
+
+Note: Invisibility Setting
+
+By default, when you de-queue a message, it is invisible to the queue for 30 seconds. In the event message processing exceeds this timeframe, supply an alternate setting for this value when creating or updating the message. You can set the timeout to a value between one second and seven days. Visibility can also exceed the message expiry time.
+
+Retrieving a batch of messages
+A queue listener can be implemented as single-threaded (processing one message at a time) or multi-threaded (processing messages in a batch on separate threads). You can retrieve up to 32 messages from a queue using the GetMessages() method to process multiple messages in parallel. As discussed in the previous sections, create a CloudQueue reference, and then proceed to call GetMessages(). Specify the number of items to de-queue up to 32 (this number can exceed the number of items in the queue) as follows:
+
+Click here to view code image
+
+IEnumerable<CloudQueueMessage> batch = queue.GetMessages(10, new TimeSpan(0, 5, 0));
+
+foreach (CloudQueueMessage batchMessage in batch)
+
+{
+
+ Console.WriteLine(batchMessage.AsString);
+
+}
+
+Note: Parallel Processing Overhead
+
+Consider the overhead of message processing before deciding the appropriate number of messages to process in parallel. If significant memory, disk space, or other network resources are used during processing, throttling parallel processing to an acceptable number will be necessary to avoid performance degradation on the compute instance.
+
+Scaling queues
+When working with Azure Storage queues, you need to consider a few scalability issues, including the messaging throughput of the queue itself and the design topology for processing messages and scaling out as needed.
+
+Each individual queue has a target of approximately 20,000 messages per second (assuming a message is within 1 KB). You can partition your application to use multiple queues to increase this throughput value.
+
+As for processing messages, it is more cost effective and efficient to pull multiple messages from the queue for processing in parallel on a single compute node; however, this depends on the type of processing and resources required. Scaling out compute nodes to increase processing throughput is usually also required.
+
+You can configure VMs or cloud services to auto-scale by queue. You can specify the average number of messages to be processed per instance, and the auto-scale algorithm will queue to run scale actions to increase or decrease available instances accordingly.
+
+More Info: Back Off Polling
+
+To control storage costs, you should implement a back off polling algorithm for queue message processing. This and other scale considerations are discussed in the reference at https://docs.microsoft.com/en-us/azure/storage/common/storage-performance-checklist.
+
+Choose between Azure Storage Tables and Azure Cosmos DB Table API
+Azure Cosmos DB is a cloud-hosted, NoSQL database that allows different data models to be implemented. NoSQL databases can be key/value stores, table stores, and graph stores (along with several others). Azure Cosmos DB has different engines that accommodate these different models. Azure Cosmos DB Table API is a key value store that is very similar to Azure Storage Tables.
+
+The main differences between these products are:
+
+Image Azure Cosmos DB is much faster, with latency lower than 10ms on reads and 15ms on writes at any scale.
+
+Image Azure Table Storage only supports a single region with one optional readable secondary for high availability. Azure Cosmos DB supports over 30 regions.
+
+Image Azure Table Storage only indexes the partition key and the row key. Azure Cosmos DB automatically indexes all properties.
+
+Image Azure Table Storage only supports strong or eventual consistency. Consistency refers to how up to date the data is that you read and weather you see the latest writes from other users. Stronger consistency means less overall throughput and concurrent performance while having more up to date data. Eventual consistency allows for high concurrent throughput but you might see older data. Azure Cosmos DB supports five different consistency models and allows those models to be specified at the session level. This means that one user or feature might have a different consistency level than a different user or feature.
+
+Image Azure Table Storage only charges you for the storage fees, not for compute fees. This makes Azure Table Storage very affordable. Azure Cosmos DB charges for a Request Unit (RU) which really is a way for a PAAS product to charge for compute fees. If you need more RUs, you can scale them up. This makes Cosmos DB significantly more expensive than Azure Storage Tables.
+
+SKILL 2.3: MANAGE ACCESS AND MONITOR STORAGE
+We have already learned how Azure Storage allows access through access keys, but what happens if we want to gain access to specific resources without giving keys to the entire storage account? In this topic, we’ll introduce security issues that may arise and how to solve them.
+
+Azure Storage has a built-in analytics feature called Azure Storage Analytics used for collecting metrics and logging storage request activity. You enable Storage Analytics Metrics to collect aggregate transaction and capacity data, and you enable Storage Analytics Logging to capture successful and failed request attempts to your storage account. This section covers how to enable monitoring and logging, control logging levels, set retention policies, and analyze the logs.
+
+This skill covers how to:
+
+Image Generate shared access signatures, including client renewal and data validation
+
+Image Create stored access policies
+
+Image Regenerate storage account keys
+
+Image Configure and use Cross-Origin Resource Sharing (CORS)
+
+Image Set retention policies and logging levels
+
+Image Analyze logs
+
+Generate shared access signatures
+By default, storage resources are protected at the service level. Only authenticated callers can access tables and queues. Blob containers and blobs can optionally be exposed for anonymous access, but you would typically allow anonymous access only to individual blobs. To authenticate to any storage service, a primary or secondary key is used, but this grants the caller access to all actions on the storage account.
+
+An SAS is used to delegate access to specific storage account resources without enabling access to the entire account. An SAS token lets you control the lifetime by setting the start and expiration time of the signature, the resources you are granting access to, and the permissions being granted.
+
+The following is a list of operations supported by SAS:
+
+Image Reading or writing blobs, blob properties, and blob metadata
+
+Image Leasing or creating a snapshot of a blob
+
+Image Listing blobs in a container
+
+Image Deleting a blob
+
+Image Adding, updating, or deleting table entities
+
+Image Querying tables
+
+Image Processing queue messages (read and delete)
+
+Image Adding and updating queue messages
+
+Image Retrieving queue metadata
+
+This section covers creating an SAS token to access storage services using the Storage Client Library.
+
+More Info: Controlling Anonymous Access
+
+To control anonymous access to containers and blobs, follow the instructions provided at http://msdn.microsoft.com/en-us/library/azure/dd179354.aspx.
+
+More Info: Constructing an Sas Uri
+
+SAS tokens are typically used to authorize access to the Storage Client Library when interacting with storage resources, but you can also use it directly with the storage resource URI and use HTTP requests directly. For details regarding the format of an SAS URI, see http://msdn.microsoft.com/en-us/library/azure/dn140255.aspx.
+
+Creating an SAS token (Blobs)
+The following code shows how to create an SAS token for a blob container. Note that it is created with a start time and an expiration time. It is then applied to a blob container:
+
+Click here to view code image
+
+SharedAccessBlobPolicy sasPolicy = new SharedAccessBlobPolicy();
+
+sasPolicy.SharedAccessExpiryTime = DateTime.UtcNow.AddHours(1);
+
+sasPolicy.SharedAccessStartTime = DateTime.UtcNow.Subtract(new TimeSpan(0, 5, 0));
+
+sasPolicy.Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.
+
+Write | SharedAccessBlobPermissions.Delete | SharedAccessBlobPermissions.List;
+
+CloudBlobContainer files = blobClient.GetContainerReference("files");
+
+string sasContainerToken = files.GetSharedAccessSignature(sasPolicy);
+
+The SAS token grants read, write, delete, and list permissions to the container (rwdl). It looks like this:
+
+Click here to view code image
+
+?sv=2014-02-14&sr=c&sig=B6bi4xKkdgOXhWg3RWIDO5peekq%2FRjvnuo5o41hj1pA%3D&st=2014
+
+ -12-24T14%3A16%3A07Z&se=2014-12-24T15%3A21%3A07Z&sp=rwdl
+
+You can use this token as follows to gain access to the blob container without a storage account key:
+
+Click here to view code image
+
+StorageCredentials creds = new StorageCredentials(sasContainerToken);
+
+CloudStorageAccount accountWithSAS = new CloudStorageAccount(accountSAS, "account-name",
+
+endpointSuffix: null, useHttps: true);
+
+
+
+CloudBlobClientCloudBlobContainer sasFiles = sasClient.GetContainerReference("files");
+
+With this container reference, if you have write permissions, you can interact with the container as you normally would assuming you have the correct permissions.
+
+Creating an SAS token (Queues)
+Assuming the same account reference as created in the previous section, the following code shows how to create an SAS token for a queue:
+
+Click here to view code image
+
+CloudQueueClient queueClient = account.CreateCloudQueueClient();
+
+CloudQueue queue = queueClient.GetQueueReference("queue");
+
+SharedAccessQueuePolicy sasPolicy = new SharedAccessQueuePolicy();
+
+sasPolicy.SharedAccessExpiryTime = DateTime.UtcNow.AddHours(1);
+
+sasPolicy.Permissions = SharedAccessQueuePermissions.Read |
+
+SharedAccessQueuePermissions.Add | SharedAccessQueuePermissions.Update |
+
+SharedAccessQueuePermissions.ProcessMessages;
+
+sasPolicy.SharedAccessStartTime = DateTime.UtcNow.Subtract(new TimeSpan(0, 5, 0));
+
+string sasToken = queue.GetSharedAccessSignature(sasPolicy);
+
+The SAS token grants read, add, update, and process messages permissions to the container (raup). It looks like this:
+
+Click here to view code image
+
+?sv=2014-02-14&sig=wE5oAUYHcGJ8chwyZZd3Byp5jK1Po8uKu2t%2FYzQsIhY%3D&st=2014-12-2 4T14%3A23%3A22Z&se=2014-12-24T15%3A28%3A22Z&sp=raup
+
+You can use this token as follows to gain access to the queue and add messages:
+
+Click here to view code image
+
+StorageCredentials creds = new StorageCredentials(sasContainerToken);
+
+CloudQueueClient sasClient = new CloudQueueClient(new
+
+Uri("https://dataike1.queue.core.windows.net/"), creds);
+
+CloudQueue sasQueue = sasClient.GetQueueReference("queue");
+
+sasQueue.AddMessage(new CloudQueueMessage("new message"));
+
+Console.ReadKey();
+
+Important: Secure Use of Sas
+
+Always use a secure HTTPS connection to generate an SAS token to protect the exchange of the URI, which grants access to protected storage resources.
+
+Creating an SAS token (Tables)
+The following code shows how to create an SAS token for a table:
+
+Click here to view code image
+
+SharedAccessTablePolicy sasPolicy = new SharedAccessTablePolicy();
+
+sasPolicy.SharedAccessExpiryTime = DateTime.UtcNow.AddHours(1);
+
+sasPolicy.Permissions = SharedAccessTablePermissions.Query |
+
+SharedAccessTablePermissions.Add | SharedAccessTablePermissions.Update |
+
+SharedAccessTablePermissions.Delete;
+
+sasPolicy.SharedAccessStartTime = DateTime.UtcNow.Subtract(new TimeSpan(0, 5, 0));
+
+string sasToken = table.GetSharedAccessSignature(sasPolicy);
+
+The SAS token grants query, add, update, and delete permissions to the container (raud). It looks like this:
+
+Click here to view code image
+
+?sv=2014-02-14&tn=%24logs&sig=dsnI7RBA1xYQVr%2FTlpDEZMO2H8YtSGwtyUUntVmxstA%3D&s
+
+t=2014-12-24T14%3A48%3A09Z&se=2014-12-24T15%3A53%3A09Z&sp=raud
+
+Renewing an SAS token
+SAS tokens have a limited period of validity based on the start and expiration times requested. You should limit the duration of an SAS token to limit access to controlled periods of time. You can extend access to the same application or user by issuing new SAS tokens on request. This should be done with appropriate authentication and authorization in place.
+
+Validating data
+When you extend write access to storage resources with SAS, the contents of those resources can potentially be made corrupt or even be tampered with by a malicious party, particularly if the SAS was leaked. Be sure to validate system use of all resources exposed with SAS keys.
+
+Create stored access policies
+Stored access policies provide greater control over how you grant access to storage resources using SAS tokens. With a stored access policy, you can do the following after releasing an SAS token for resource access:
+
+Image Change the start and end time for a signature’s validity
+
+Image Control permissions for the signature
+
+Image Revoke access
+
+The stored access policy can be used to control all issued SAS tokens that are based on the policy. For a step-by-step tutorial for creating and testing stored access policies for blobs, queues, and tables, see http://azure.microsoft.com/en-us/documentation/articles/storage-dotnet-shared-access-signature-part-2.
+
+Important: Recommendation for Sas Tokens
+
+Use stored access policies wherever possible, or limit the lifetime of SAS tokens to avoid malicious use.
+
+More Info: Stored Access Policy Format
+
+For more information on the HTTP request format for creating stored access policies, see: https://docs.microsoft.com/en-us/rest/api/storageservices/establishing-a-stored-access-policy.
+
+Regenerate storage account keys
+When you create a storage account, two 512-bit storage access keys are generated for authentication to the storage account. This makes it possible to regenerate keys without impacting application access to storage.
+
+The process for managing keys typically follows this pattern:
+
+When you create your storage account, the primary and secondary keys are generated for you. You typically use the primary key when you first deploy applications that access the storage account.
+
+When it is time to regenerate keys, you first switch all application configurations to use the secondary key.
+
+Next, you regenerate the primary key, and switch all application configurations to use this primary key.
+
+Next, you regenerate the secondary key.
+
+Important: Managing Key Regeneration
+
+It is imperative that you have a sound key management strategy. In particular, you must be certain that all applications are using the primary key at a given point in time to facilitate the regeneration process.
+
+Regenerating storage account keys
+To regenerate storage account keys using the portal, complete the following steps:
+
+Navigate to the management portal accessed via https://portal.azure.com.
+
+Select your storage account from your dashboard or your All Resources list.
+
+Click the Keys box.
+
+On the Manage Keys blade, click Regenerate Primary or Regenerate Secondary on the command bar, depending on which key you want to regenerate.
+
+In the confirmation dialog box, click Yes to confirm the key regeneration.
+
+Configure and use Cross-Origin Resource Sharing
+Cross-Origin Resource Sharing (CORS) enables web applications running in the browser to call web APIs that are hosted by a different domain. Azure Storage blobs, tables, and queues all support CORS to allow for access to the Storage API from the browser. By default, CORS is disabled, but you can explicitly enable it for a specific storage service within your storage account.
+
+More: Info Enabling Cors
+
+For additional information about enabling CORS for your storage accounts, see: http://msdn.microsoft.com/en-us/library/azure/dn535601.aspx.
+
+Configure storage metrics
+Storage Analytics metrics provide insight into transactions and capacity for your storage accounts. You can think of them as the equivalent of Windows Performance Monitor counters. By default, storage metrics are not enabled, but you can enable them through the management portal, using Windows PowerShell, or by calling the management API directly.
+
+When you configure storage metrics for a storage account, tables are generated to store the output of metrics collection. You determine the level of metrics collection for transactions and the retention level for each service: Blob, Table, and Queue.
+
+Transaction metrics record request access to each service for the storage account. You specify the interval for metric collection (hourly or by minute). In addition, there are two levels of metrics collection:
+
+Image Service level These metrics include aggregate statistics for all requests, aggregated at the specified interval. Even if no requests are made to the service, an aggregate entry is created for the interval, indicating no requests for that period.
+
+Image API level These metrics record every request to each service only if a request is made within the hour interval.
+
+Note: Metrics Collected
+
+All requests are included in the metrics collected, including any requests made by Storage Analytics.
+
+Capacity metrics are only recorded for the Blob service for the account. Metrics include total storage in bytes, the container count, and the object count (committed and uncommitted).
+
+Table 2-1 summarizes the tables automatically created for the storage account when Storage Analytics metrics are enabled.
+
+TABLE 2-1 Storage metrics tables
+
+METRICS
+
+TABLE NAMES
+
+Hourly metrics
+
+$MetricsHourPrimaryTransactionsBlob
+
+$MetricsHourPrimaryTransactionsTable
+
+$MetricsHourPrimaryTransactionsQueue
+
+$MetricsHourPrimaryTransactionsFile
+
+Minute metrics (cannot set through the management portal)
+
+$MetricsMinutePrimaryTransactionsBlob
+
+$MetricsMinutePrimaryTransactionsTable
+
+$MetricsMinutePrimaryTransactionsQueue
+
+$MetricsMinutePrimaryTransactionsFile
+
+Capacity (only for the Blob service)
+
+$MetricsCapacityBlob
+
+More Info: Storage Analytics Metrics Tabale Schema
+
+For additional details on the transaction and capacity metrics collected, see: https://docs.microsoft.com/en-us/rest/api/storageservices/storage-analytics-metrics-table-schema.
+
+Retention can be configured for each service in the storage account. By default, Storage Analytics will not delete any metrics data. When the shared 20-terabyte limit is reached, new data cannot be written until space is freed. This limit is independent of the storage limit of the account. You can specify a retention period from 0 to 365 days. Metrics data is automatically deleted when the retention period is reached for the entry.
+
+When metrics are disabled, existing metrics that have been collected are persisted up to their retention policy.
+
+More Info: Storage Metrics
+
+For more information about enabling and working with storage metrics, see: http://msdn.microsoft.com/en-us/library/azure/dn782843.aspx.
+
+Configuring storage metrics and retention
+To enable storage metrics and associated retention levels for Blob, Table, and Queue services in the portal, follow these steps:
+
+Navigate to the management portal accessed via https://portal.azure.com.
+
+Select your storage account from your dashboard or your All resources list.
+
+Scroll down to the Usage section, and click the Capacity graph check box.
+
+On the Metric blade, click Diagnostics Settings on the command bar.
+
+Click the On button under Status. This shows the options for metrics and logging.
+
+Image If this storage account uses blobs, select Blob Aggregate Metrics to enable service level metrics. Select Blob Per API Metrics for API level metrics.
+
+Image If this storage account uses tables, select Table Aggregate Metrics to enable service level metrics. Select Table Per API Metrics for API level metrics.
+
+Image If this storage account uses queues, select Queue Aggregate Metrics to enable service level metrics. Select Queue Per API Metrics for API level metrics.
+
+Provide a value for retention according to your retention policy. Through the portal, this will apply to all services. It will also apply to Storage Analytics Logging if that is enabled. Select one of the available retention settings from the slider-bar, or enter a number from 0 to 365.
+
+Note: Choosing a Metrics Level
+
+Minimal metrics yield enough information to provide a picture of the overall usage and health of the storage account services. Verbose metrics provide more insight at the API level, allowing for deeper analysis of activities and issues, which is helpful for troubleshooting.
+
+Analyze storage metrics
+Storage Analytics metrics are collected in tables as discussed in the previous section. You can access the tables directly to analyze metrics, but you can also review metrics in both Azure management portals. This section discusses various ways to access metrics and review or analyze them.
+
+More Info: Storage Monitoring, Diagnosing, and Troubleshooting
+
+For more details on how to work with storage metrics and logs, see: http://azure.microsoft.com/en-us/documentation/articles/storage-monitoring-diagnosing-troubleshooting.
+
+Monitor metrics
+At the time of this writing, the portal features for monitoring metrics is limited to some predefined metrics, including total requests, total egress, average latency, and availability (see Figure 2-4). Click each box to see a Metric blade that provides additional detail.
+
+Image
+FIGURE 2-4 Monitoring overview from the portal
+
+To monitor the metrics available in the portal, complete the following steps:
+
+Navigate to the management portal accessed via https://portal.azure.com.
+
+Select your storage account from your dashboard or your All Resources list.
+
+Scroll down to the Monitor section, and view the monitoring boxes summarizing statistics. You’ll see TotalRequests, TotalEgress, AverageE2ELatency, and AvailabilityToday by default.
+
+Click each metric box to view additional details for each metric. You’ll see metrics for blobs, tables, and queues if all three metrics are being collected.
+
+Note: Customizing the Monitoring Blade
+
+You can customize which boxes appear in the Monitoring area of the portal, and you can adjust the size of each box to control how much detail is shown at a glance without drilling into the metrics blade.
+
+Configure Storage Analytics Logging
+Storage Analytics Logging provides details about successful and failed requests to each storage service that has activity across the account’s blobs, tables, and queues. By default, storage logging is not enabled, but you can enable it through the management portal, by using Windows PowerShell, or by calling the management API directly.
+
+When you configure Storage Analytics Logging for a storage account, a blob container named $logs is automatically created to store the output of the logs. You choose which services you want to log for the storage account. You can log any or all of the Blob, Table, or Queue servicesLogs are created only for those services that have activity, so you will not be charged if you enable logging for a service that has no requests. The logs are stored as block blobs as requests are logged and are periodically committed so that they are available as blobs.
+
+Note: Deleting the Log Container
+
+After Storage Analytics has been enabled, the log container cannot be deleted; however, the contents of the log container can be deleted.
+
+Retention can be configured for each service in the storage account. By default, Storage Analytics will not delete any logging data. When the shared 20-terabyte limit is reached, new data cannot be written until space is freed. This limit is independent of the storage limit of the account. You can specify a retention period from 0 to 365 days. Logging data is automatically deleted when the retention period is reached for the entry.
+
+Note: Duplicate Logs
+
+Duplicate log entries may be present within the same hour. You can use the RequestId and operation number to uniquely identify an entry to filter duplicates.
+
+More Info: Storage Logging
+
+For more information about enabling and working with Azure storage logging, see: http://msdn.microsoft.com/en-us/library/azure/dn782843.aspx and http://msdn.microsoft.com/en-us/library/azure/hh343262.aspx.
+
+Set retention policies and logging levels To enable storage logging and associated retention levels for Blob, Table, and Queue services in the portal, follow these steps:
+
+Navigate to the management portal accessed via https://portal.azure.com.
+
+Select your storage account from your dashboard or your All resources list.
+
+Under the Metrics section, click Diagnostics.
+
+Click the On button under Status. This shows the options for enabling monitoring features.
+
+If this storage account uses blobs, select Blob Logs to log all activity.
+
+If this storage account uses tables, select Table Logs to log all activity.
+
+If this storage account uses queues, select Queue Logs to log all activity.
+
+Provide a value for retention according to your retention policy. Through the portal, this will apply to all services. It will also apply to Storage Analytics Metrics if that is enabled. Select one of the available retention settings from the drop-down list, or enter a number from 0 to 365.
+
+Note: Controlling Logged Activities
+
+From the portal, when you enable or disable logging for each service, you enable read, write, and delete logging. To log only specific activities, use Windows PowerShell cmdlets.
+
+Enable client-side logging
+You can enable client-side logging using Microsoft Azure storage libraries to log activity from client applications to your storage accounts. For information on the .NET Storage Client Library, see: http://msdn.microsoft.com/en-us/library/azure/dn782839.aspx. For information on the Storage SDK for Java, see: http://msdn.microsoft.com/en-us/library/azure/dn782844.aspx.
+
+Analyze logs
+Logs are stored as block blobs in delimited text format. When you access the container, you can download logs for review and analysis using any tool compatible with that format. Within the logs, you’ll find entries for authenticated and anonymous requests, as listed in Table 2-2.
+
+TABLE 2-2 Authenticated and anonymous logs
+
+Request type
+
+Logged requests
+
+Authenticated requests
+
+Image Successful requests
+
+Image Failed requests such as timeouts, authorization, throttling issues, and other errors
+
+Image Requests that use an SAS
+
+Image Requests for analytics data
+
+Anonymous requests
+
+Image Successful requests
+
+Image Server errors
+
+Image Timeouts for client or server
+
+Image Failed GET requests with error code 304 (Not Modified)
+
+Logs include status messages and operation logs. Status message columns include those shown in Table 2-3. Some status messages are also reported with storage metrics data. There are many operation logs for the Blob, Table, and Queue services.
+
+More Info: Status Messages and Operation Logs
+
+For a detailed list ofx specific logs and log format specifics, see: http://msdn.microsoft.com/en-us/library/azure/hh343260.aspx and http://msdn.microsoft.com/en-us/library/hh343259.aspx.
+
+TABLE 2-3 Information included in logged status messages
+
+Column
+
+Description
+
+Status Message
+
+Indicates a value for the type of status message, indicating type of success or failure
+
+Description
+
+Describes the status, including any HTTP verbs or status codes
+
+Billable
+
+Indicates whether the request was billable
+
+Availability
+
+Indicates whether the request is included in the availability calculation for storage metrics
+
+Finding your logs
+When storage logging is configured, log data is saved to blobs in the $logs container created for your storage account. You can’t see this container by listing containers, but you can navigate directly to the container to access, view, or download the logs.
+
+To view analytics logs produced for a storage account, do the following:
+
+Using a storage browsing tool, navigate to the $logs container within the storage account you have enabled Storage Analytics Logging for using this convention: https://<accountname>.blob.core.windows.net/$logs.
+
+View the list of log files with the convention <servicetype>/YYYY/MM/DD/HHMM/<counter>.log.
+
+Select the log file you want to review, and download it using the storage browsing tool.
+
+More Info: Log Metadata
+
+The blob name for each log file does not provide an indication of the time range for the logs. You can search this information in the blob metadata using storage browsing tools or Windows PowerShell.
+
+View logs with Microsoft Excel
+Storage logs are recorded in a delimited format so that you can use any compatible tool to view logs. To view logs data in Excel, follow these steps:
+
+Open Excel, and on the Data menu, click From Text.
+
+Find the log file and click Import.
+
+During import, select Delimited format. Select Semicolon as the only delimiter, and Double-Quote (“) as the text qualifier.
+
+Analyze logs
+After you load your logs into a viewer like Excel, you can analyze and gather information such as the following:
+
+Image Number of requests from a specific IP range
+
+Image Which tables or containers are being accessed and the frequency of those requests
+
+Image Which user issued a request, in particular, any requests of concern
+
+Image Slow requests
+
+Image How many times a particular blob is being accessed with an SAS URL
+
+Image Details to assist in investigating network errors
+
+More Info: Log Analysis
+
+You can run the Azure HDInsight Log Analysis Toolkit (LAT) for a deeper analysis of your storage logs. For more information, see: https://hadoopsdk.codeplex.com/releases/view/117906.
+
+SKILL 2.4: IMPLEMENT AZURE SQL DATABASES
+In this section, you learn about Microsoft Azure SQL Database, a PaaS offering for relational data.
+
+This skill covers how to:
+
+Image Choose the appropriate database tier and performance level
+
+Image Configure and perform point in time recovery
+
+Image Enable geo-replication
+
+Image Import and export data and schema
+
+Image Scale Azure SQL databases
+
+Image Manage elastic pools, including DTUs and eDTUs
+
+Image Manage limits and resource governor
+
+Image Implement Azure SQL Data Sync
+
+Image Implement graph database functionality in Azure SQL
+
+Choosing the appropriate database tier and performance level
+Choosing a SQL Database tier used to be simply a matter of storage space. Recently, Microsoft added new tiers that also affect the performance of SQL Database. This tiered pricing is called Service Tiers. There are three service tiers to choose from, and while they still each have restrictions on storage space, they also have some differences that might affect your choice. The major difference is in a measurement called database throughput units (DTUs). A DTU is a blended measure of CPU, memory, disk reads, and disk writes. Because SQL Database is a shared resource with other Azure customers, sometimes performance is not stable or predictable. As you go up in performance tiers, you also get better predictability in performance.
+
+Image Basic Basic tier is meant for light workloads. There is only one performance level of the basic service tier. This level is good for small use, new projects, testing, development, or learning.
+
+Image Standard Standard tier is used for most production online transaction processing (OLTP) databases. The performance is more predictable than the basic tier. In addition, there are four performance levels under this tier, levels S0 to S3 (S4 – S12 are currently in preview).
+
+Image Premium Premium tier continues to scale at the same level as the standard tier. In addition, performance is typically measured in seconds. For instance, the basic tier can handle 16,600 transactions per hour. The standard/S2 level can handle 2,570 transactions per minute. The top tier of premium can handle 735 transactions per second. That translates to 2,645,000 per hour in basic tier terminology.
+
+More Info: Sql Database Tiers and Throughput
+
+For more information on SQL Database tiers, see: http://msdn.microsoft.com/en-us/library/azure/dn741336.aspx.
+
+There are many similarities between the various tiers. Each tier has a 99.99 percent uptime SLA, backup and restore capabilities, access to the same tooling, and the same database engine features. Fortunately, the levels are adjustable, and you can change your tier as your scaling requirements change.
+
+The management portal can help you select the appropriate level. You can review the metrics on the Metrics tab to see the current load of your database and decide whether to scale up or down.
+
+Click the SQL database you want to monitor.
+
+Click the DTU tab, as shown in Figure 2-5.
+
+Add the following metrics:
+
+Image CPU Percentage
+
+Image Physical Data Reads Percentage
+
+Image Log Writes Percentage
+
+Image
+FIGURE 2-5 The Metrics tab
+
+All three of these metrics are shown relative to the DTU of your database. If you reach 80 percent of your performance metrics, it’s time to consider increasing your service tier or performance level. If you’re consistently below 10 percent of the DTU, you might consider decreasing your service tier or performance level. Be aware of momentary spikes in usage when making your choice.
+
+In addition, you can configure an email alert for when your metrics are 80 percent of your selected DTU by completing the following steps:
+
+Click the metric.
+
+Click Add Rule.
+
+The first page of the Create Alert Rule dialog box is shown in Figure 2-6. Add a name and description, and then click the right arrow.
+
+Image
+FIGURE 2-6 The first page of the Add An Alert Rule dialog box
+
+Scroll down for the rest of the page of the Create Alert Rule dialog box, shown in Figure 2-7, select the condition and the threshold value.
+
+Image
+FIGURE 2-7 The second page of the Create Alert Rule dialog box
+
+Select your alert evaluation window. An email will be generated if the event happens over a specific duration. You should indicate at least 10 minutes.
+
+Select the action. You can choose to send an email either to the service administrator(s) or to a specific email address.
+
+Configuring and performing point in time recovery
+Azure SQL Database does a full backup every week, a differential backup each day, and an incremental log backup every five minutes. The incremental log backup allows for a point in time restore, which means the database can be restored to any specific time of day. This means that if you accidentally delete a customer’s table from your database, you will be able to recover it with minimal data loss if you know the timeframe to restore from that has the most recent copy.
+
+The length of time it takes to do a restore varies. The further away you get from the last differential backup determines the longer the restore operation takes because there are more log backups to restore. When you restore a new database, the service tier stays the same, but the performance level changes to the minimum level of that tier.
+
+Depending on your service tier, you will have different backup retention periods. Basic retains backups for 7 days. Standard and premium retains for 35 days.
+
+You can restore a database that was deleted as long as you are within the retention period. Follow these steps to restore a database:
+
+Select the database you want to restore, and then click Restore.
+
+The Restore dialog box opens, as shown in Figure 2-8.
+
+Image
+FIGURE 2-8 The Restore dialog box
+
+Select a database name.
+
+Select a restore point. You can use the slider bar or manually enter a date and time.
+
+You can also restore a deleted database. Click on the SQL Server (not the database) that once held the database you wish to restore. Select the Deleted Databases tab, as shown in Figure 2-9.
+
+Image
+FIGURE 2-9 The Deleted Databases tab for SQL databases in the management portal
+
+Select the database you want to restore.
+
+Click Restore as you did in Step 1.
+
+Specify a database name for the new database.
+
+Click Submit.
+
+Enabling geo-replication
+Every Azure SQL Database subscription has built-in redundancy. Three copies of your data are stored across fault domains in the datacenter to protect against server and hardware failure. This is built in to the subscription price and is not configurable.
+
+In addition, you can configure active geo-replication. This allows your data to be replicated between Azure data centers. Active geo-replication has the following benefits:
+
+Image Database-level disaster recovery goes quickly when you’ve replicated transactions to databases on different SQL Database servers in the same or different regions.
+
+Image You can fail over to a different data center in the event of a natural disaster or other intentionally malicious act.
+
+Image Online secondary databases are readable, and they can be used as load balancers for read-only workloads such as reporting.
+
+Image With automatic asynchronous replication, after an online secondary database has been seeded, updates to the primary database are automatically copied to the secondary database.
+
+Creating an offline secondary database
+To create an offline secondary database in the portal, follow these steps:
+
+Navigate to your SQL database in the management portal accessed via https://portal.azure.com.
+
+Scroll to the Geo Replication section, and click the Configure Geo Replication box.
+
+On the Geo Replication blade, select your target region.
+
+On the Create Secondary blade, click Create.
+
+Note: Uses for Creating an Offline Secondary
+
+Another use for this feature has to do with the ability to terminate the continuous copy relationship between a primary and secondary database. You can terminate the relationship and then upgrade the primary database to a different schema to support a software upgrade. The secondary database gives you a rollback option.
+
+Creating an online secondary database
+Before you create an online secondary, the following requirements must be met:
+
+Image The secondary database must have the same name as the primary.
+
+Image They must be on separate servers.
+
+Image They both must be on the same subscription.
+
+Image The secondary server cannot be a lower performance tier than the primary.
+
+The steps for configuring an active secondary is the same as creating an offline secondary, except you can select the target region, as shown in Figure 2-10.
+
+Image
+FIGURE 2-10 The New Secondary For Geo Replication dialog box for creating an active secondary
+
+Creating an online secondary database
+To create an online secondary in the portal, follow these steps:Navigate to your SQL database in the management portal accessed via https://portal.azure.com.
+
+On the Create Secondary blade, change the Secondary Type to Readable.
+
+Click Create to create the secondary.
+
+Import and export schema and data
+The on-premise version of Microsoft SQL Server has long had the ability to export and import data using a BACPAC file. This file will also work with Azure SQL Database. A BACPAC file is just a ZIP file that contains all of the metadata and state data of a SQL Server database.
+
+The easiest way to import schema and data from an on-premise SQL Server into an Azure SQL Database is to use SQL Server Management Studio (SSMS). The general steps are:
+
+Export source database using SSMS
+
+Import database to a new destination using SSMS.
+
+Export source database
+Open SQL Server Management Studio
+
+Right-click on the source database, click Tasks, and click Export Data-tier Application (see Figure 2-11).
+
+Image
+FIGURE 2-11 SSMS Export Data-tier right-click menu
+
+Click Next on the Welcome screen (Figure 2-12).
+
+Image
+FIGURE 2-12 Welcome screen for BACPAC process
+
+In the Export Settings screen, you can choose where the BACPAC file should be stored. You can either save it to a local disk or save it in an Azure Storage blob container. Either method is easy to use when you import the BACPAC file (Figure 2-13).
+
+Image
+FIGURE 2-13 Location for BACPAC file
+
+On the Advanced tab (Figure 2-14), you can selective choose specific tables or schemas or the entire database.
+
+Image
+FIGURE 2-14 The advanced tab for selecting the correct tables and schema
+
+Then click Finish and we’re all done.
+
+Import BACPAC file into Azure SQL Database
+Connect to your Azure SQL Database using SSMS.
+
+You may need to log into the portal and allow your IP address in to the built-in firewall used by Azure SQL Database. More information can be found here: https://docs.microsoft.com/en-us/azure/sql-database/sql-database-firewall-configure.
+
+Right-click on the database folder and click Import Data-tier Application.
+
+Click Next.
+
+Choose the correct BACPAC file and click Next.
+
+In the next screen (Figure 2-15), click Connect and enter your storage account name and account key.
+
+Image
+FIGURE 2-15 The Connect To Microsoft Azure Storage screen
+
+Name the new database and select the pricing tier (see Figure 2-16). Warning: this option determines pricing. If you are just experimenting, choose Basic under the Edition of Microsoft Azure SQL Database.
+
+Image
+FIGURE 2-16 Choosing the database name and pricing tier
+
+Click Next and Finish.
+
+The schema and data will import into the new database that you’ve named.
+
+Scale Azure SQL databases
+There are two methods for preparing a relational database for a high transaction load. First, we can scale-up. This means that we will add CPU, memory, and better disk i/o to handle the load. In Azure SQL Database, scaling up is very simple: we just move the slider bar over to the right or choose a new pricing tier. This will give us the ability to handle more DTUs. Under a very high load, we might not be able to scale-up much futher. That would mean we’d have to use our second method, scale-out.
+
+Scaling out a database means that we would break apart a large database into small portions. This is called sharding. We would put one portion of our data in one database and another portion of our data in a different database. We can do this by function, by date, by geo-location of our brand offices, by business unit, or some other method.
+
+We may also shard a database simply because it is too large to be stored in a single Azure SQL Database. Or it is too much data to backup and restore in a reasonable amount of time. We may also shard data because we are a software company and our customers require that their data is stored away from our other customers, effectively giving us one database per customer.
+
+Sharding is burdensome in a transactional system because it usually involves rewriting a significant portion of our applications to handle multiple databases. Also, if we get the sharding boundaries wrong, we might not actually improve performance. For instance, what if we often join data from one database with data from a different database? Now we’re locking resources while we wait for the slower database to respond. This can compound our concurrency, blocking, and deadlocking issues that we might have led us towards scaling-out in the first place.
+
+Some of these issues are solved with a shard map. This is usually a table or database that tells the application where data actually is and where to go looking for it. This allows us to move data around and update the shard map, thus avoiding significant rewriting of our application. If implemented correctly, shard maps can allow us to add more databases or delete database as necessary. This may give us the elasticity that may have eluded us on the database thus far.
+
+You’ll note that sharding is easily implemented in Azure Table Storage and Azure Cosmos DB, but is significantly more difficult in a relational database like Azure SQL Database. The complexity comes from being transactionally consistent while having data available and spread throughout several databases.
+
+Microsoft has released a set of tools called Elastic Database Tools that are compatible with Azure SQL Database. This client library can be used in your application to create sharded databases. It has a split-merge tool that will allow you to create new nodes or drop nodes without data loss. It also includes a tool that will keep schema consistent across all the nodes by running scripts on each node individually.
+
+The main power of the Elastic Database Tools is the ability to fan-out queries across multiple shards without a lot of code changes. Follow these general steps to use a sharded database:
+
+Get a Shard Map.
+
+Image There are several different types of shard maps, for instance range shard map will tell you what range of values exist in which databases. If we were to divide our data by customer ID, then we would make sure all tables in our database included a customer ID. We could grab anything about that customer, including their contacts, orders, invoices, payments, customer service disputes, and employees as long as we have the correct customer ID. A shard map might look like this:
+
+Image 1 – 100 = Database1
+
+Image 101 – 200 = Database2
+
+Image 202 – 300 = Database 3
+
+Create a MultiShareConnection Object
+
+Image This is similar to a regular SqlConnection object, except in represents a connection to a set of shards.
+
+Create a multi-shard command.
+
+Set the CommandText property
+
+ExecuteReader
+
+View the results using the MultiShardDataReader class.
+
+Assuming you had a ShardMap object, the query would look like this:
+
+Click here to view code image
+
+using (MultiShardConnection conn = new MultiShardConnection(  
+
+                                    myShardMap.GetShards(),  
+
+                                    myShardConnectionString)  
+
+      )  
+
+{  
+
+using (MultiShardCommand cmd = conn.CreateCommand())
+
+        {  
+
+        cmd.CommandText = "SELECT c1, c2, c3 FROM ShardedTable";  
+
+        cmd.CommandType = CommandType.Text;  
+
+        cmd.ExecutionOptions = MultiShardExecutionOptions.IncludeShardNameColumn;
+
+        cmd.ExecutionPolicy = MultiShardExecutionPolicy.PartialResults;  
+
+
+
+        using (MultiShardDataReader sdr = cmd.ExecuteReader())  
+
+            {  
+
+                while (sdr.Read())
+
+                     {  
+
+                        var c1Field = sdr.GetString(0);  
+
+                         var c2Field = sdr.GetFieldValue<int>(1);  
+
+                        var c3Field = sdr.GetFieldValue<Int64>(2);
+
+                     }  
+
+             }  
+
+        }  
+
+}
+
+Managed elastic pools, including DTUs and eDTUs
+A single SQL Database server can have several databases on it. Those databases can each have their own size and pricing tier. This might work out well if we always know exactly how large each database will be and how many DTUs are needed for them individually. What happens if we don’t really know that? Or we’d like the databases on a single server to share a DTU pool? Elastic pools (not to be confused with the last topic, Elastic Tools) are used to do exactly this: share DTUs across databases on a single server.
+
+Elastic pools enable the user to purchase elastic Database Transaction Units (eDTUs) for a pool of multiple databases. The user adds databases to the pool, sets the minimum and maximum eDTUS for each database, and sets the eDTU limit of the pool based on their budget. This means that within the pool, each database is given the ability to auto-scale in a set range.
+
+In Figure 2-17, you will see a database that spends most of its time idle, but occasionally spikes in activity. This database is a good candidate for an Elastic pool.
+
+Image
+FIGURE 2-17 Choosing the right database to participate in the pool
+
+To create an Elastic pool, follow these steps:
+
+Click on your database server and click New Pool.
+
+Image The new pool pane appears (Figure 2-18).
+
+Image
+FIGURE 2-18 Creating an Elastic pool
+
+Name the pool a unique name.
+
+Choose a pricing tier for the pool.
+
+To choose the databases you want to participate in the pool, click Configure Pool. This pane appears in Figure 2-19.
+
+Image
+FIGURE 2-19 Choosing the databases that participate in the Elastic pool
+
+Implement Azure SQL Data Sync
+SQL Data Sync is a new service for Azure SQL Database. It allows you to bi-directionally replicate data between two Azure SQL Databases or between an Azure SQL Database and an on-premise SQL Server.
+
+A Sync Group is a group of databases that you want to synchronize using Azure SQL Data Sync. A Sync Schema is the data you want to synchronize. Sync Direction allows you to synchronize data in either one direction or bi-directionally. Sync Interval controls how often synchronization occurs. Finally, a Conflict Resolution Policy determines who wins if data conflicts with one another.
+
+The following diagram (Figure 2-20) shows how Azure Data Sync keeps multiple databases consistent with each other.
+
+Image
+FIGURE 2-20 Azure Data Sync diagram
+
+The hub database must always be an Azure SQL Database. A member database can either be Azure SQL Database or an on-premise SQL Server.
+
+It is important to note that this is a method to of keeping data consistent across multiple databases, it is not an ETL tool. This should not be used to populate a data warehouse or to migrate an on-premise SQL Server to the cloud. This can be used to populate a read-only version of the database for reporting, but only if the schema will be 100% consistent.
+
+More Info: Azure SQL Data Sync
+
+Here’s a tutorial for creating a Data Sync Group: https://docs.microsoft.com/en-us/azure/sql-database/sql-database-get-started-sql-data-sync.
+
+Implement graph database functionality in Azure SQL Database
+SQL Server 2017 introduces a new graph database feature. This feature hasn’t been released in the on-premise edition as of this writing, but should be available in Azure SQL Database by the time this book is released. We discuss graph databases in the next section on Azure Cosmos DB as well.
+
+So far, we’ve discussed a NoSQL solution when we covered Azure Storage Tables. That was a key-value store. We will cover a different type of NoSQL solution, JSON document storage, when we examine Azure Cosmos DB DocumentDB. Graph databases are yet another NoSQL solution. Graph database introduce two new vocabulary words: nodes and relationships.
+
+Nodes are entities in relational database terms. Each node is popularly a noun, like a person, an event, an employee, a product, or a car. A relationship is similar to a relationship in SQL Server in that it defines that a connection exists between nouns. Where the relationship in graph databases differ is that it is hierarchal in nature, where it tends to be flat in SQL Server, PostgresSQL, and other relational storage engines.
+
+A graph is an abstract representation of a set of objects where nodes are linked with relationships in a hierarchy. A graph database is a database with an explicit and enforceable graph structure. Another key difference between a relational storage engine and a graph database storage engine is that as the number of nodes increase, the performance cost stays the same. Any relational database professional will tell you that joining tables will burden the engine and be a common source of performance issues when scaling. Graph databases don’t suffer from that issue. Also, entities can be connected with each other through several different paths.
+
+So where relational databases are optimized for aggregation, graph databases are optimized for having plenty of connections between nodes. Graph databases are popularly traversed through a domain specific language (DSL) called Gremlin.
+
+In Azure SQL Database, graph-like capabilities are implemented through T-SQL. Graph databases popularly have several different relationship types that are possible between nodes. Azure SQL Database only has many-to-many relationships.
+
+You can create graph objects in T-SQL with the following syntax:
+
+Click here to view code image
+
+CREATE TABLE Person (ID INTEGER PRIMARY KEY, Name VARCHAR(100), Age INT) AS NODE;
+
+CREATE TABLE friends (StartDate date) AS EDGE;
+
+This is very similar to the standard CREATE TABLE syntax, with the added “AS NODE” or “AS EDGE” at the end.
+
+Azure SQL Database supports new query syntax for traversing the graph hierarchy. This query looks something like this:
+
+Click here to view code image
+
+SELECT Restaurant.name
+
+FROM Person, likes, Restaurant
+
+WHERE MATCH (Person-(likes)->Restaurant)
+
+AND Person.name = 'John';
+
+Notice the MATCH keyword in the T-SQL WHERE clause. This will show us every person that likes a restaurant named John.
+
+More Info: Azure SQL Graph
+
+Here's a tutorial for creating a graph relationships that currently works with Azure SQL Database: https://docs.microsoft.com/en-us/sql/relational-databases/graphs/sql-graph-sample.
+
+SKILL 2.5: IMPLEMENT AZURE COSMOS DB DOCUMENTDB
+Azure Cosmos DB DocumentDB is a JSON document store database, similar to MongoDB. JSON document stores are quite a bit different than traditional relational database engines, and any attempt to map concepts will likely be futile. With that in mind, we’ll do our best to use your existing knowledge of RDBMS’s while discussing this topic. JSON document stores are the fastest growing NoSQL solutions. Developers gravitate towards it because it doesn’t require assembling or disassembling object hierarchies into a flat relational design. Azure Cosmos DB was originally designed as a JSON document storage product. It has since added support for key-value (Table API) and graph (Gremlin).
+
+JSON has been the lingua franca of data exchange on the internet for over a decade. Here is an example of JSON:
+
+Click here to view code image
+
+{
+
+{
+
+     “glossary”: {
+
+        “title”: “example glossary”,
+
+        “GlossDiv”: {
+
+            “title”: “S”,
+
+            “GlossList”: {
+
+                “GlossEntry”: {
+
+                    “ID”: “SGML”,
+
+                    “SortAs”: “SGML”,
+
+                    “GlossTerm”: “Standard Generalized Markup Language”,
+
+                    “Acronym”: “SGML”,
+
+                    “Abbrev”: “ISO 8879:1986”,
+
+                    “GlossDef”: {
+
+                        “para”: “A meta-markup language, used to create markup                            languages such as DocBook.”,
+
+                         “GlossSeeAlso”: [“GML”, “XML”]
+
+                    },
+
+                    “GlossSee”: “markup”
+
+                 }
+
+            }
+
+        }
+
+    }
+
+}
+
+Notice the hierarchal nature of JSON. One of the key advantages of JSON is that it can express an object model that developers often create in code. Object models have parent nodes and child nodes. In our above example, GlossTerm is a child object of GlossEntry. JSON can also express arrays: GlossSeeAlso has two values in it. When relational database developers create an API to store JSON, they have to undergo a process called shredding where they remove each individual element and store them in flat tables that have relationships with each other. This process was time-consuming, offered little in real business value, and was prone to errors. Because of these drawbacks, developers often turn towards JSON document stores, where saving a document is as easy as pressing the Save icon in Microsoft Word. In this section we’ll show how to create an object model, save it, and query it using Azure Cosmos DB DocumentDB.
+
+This skill covers how to:
+
+Image Choose the Cosmos DB API surface
+
+Image Create Cosmos DB API Databases and Collections
+
+Image Query documents
+
+Image Run Cosmos DB queries
+
+Image Create Graph API databases
+
+Image Execute GraphDB queries
+
+Choose the Cosmos DB API surface
+Like previously mentioned, Azure Cosmos DB is a multi-model database that has several different APIs you can choose between: Table, DocumentDB, and GraphDB.
+
+Azure Cosmos DB Table API provides the same functionality and the same API surface as Azure Storage tables. If you have an existing application that uses Azure Storage tables, you can easily migrate that application to use Azure Cosmos DB. This will allow you to take advantage of better performance, global data distribution, and automatic indexing of all fields, thus reducing significant management overhead of your existing Azure Storage table application.
+
+Azure Cosmos DB Document DB is an easy-to-implement JSON document storage API. It is an excellent choice for mobile applications, web application, and IoT applications. It allows for rapid software development by cutting down the code the developer has to write to either shred their object model into a relational store, or manage the consistency of manual indexing in Azure Storage Tables. It also is compatible with MongoDB, another JSON document storage product. You can migrate an existing MongoDB application to Azure Cosmos DB DocumentDB.
+
+Azure Cosmos DB supports the Gremlin, a popular graph API. This allows developers to write applications that take advantage of Graph traversal of their data structures. Graph databases allow us to define the relationship between entities that are stored. For instance, we can declare that one entity works for another one, is married to a different one, and owns even a different one. Entities are not people, rather they are entries defined in our data store. We can say Paula works for Sally and is married to Rick. Paula owns a vintage Chevy Corvette. Knowing these, we can write a simple line of code in Gremlin to find out what car Paula owns. Graph databases excel at defining relationships and exploring the network of those relationships. As a result, they have been popular as engines for social media applications. Because Azure Cosmos DB supports the Gremlin API, it is easy to port existing applications that use it to Azure Cosmos DB.
+
+Create Cosmos DB API Database and Collections
+Each Cosmos DB account must have at least one database. A database is a logical container that can contain collections of documents and users. Users are the mechanism that get permissions to Cosmos DB resources. Collections primarily contain JSON documents. Collections should store JSON documents of the same type and purpose, just like a SQL Server table. Collections are different than tables because they don’t enforce that documents have a particular schema. This can be very foreign to the relational database developer who assumes that every record in a table will have the same number of columns with the same data types. Collections should have documents of the same properties and data types, but they aren’t required to. Azure Cosmos DB DocumentDB gracefully handles if columns don’t exist on a document. For instance, if we are looking for all customers in zip code 92101, and a customer JSON document doesn’t happen to have that property, Azure Cosmos DB just ignores the document and doesn’t return it.
+
+Collections can also store stored procedures, triggers, and functions. These concepts are also similar to relational databases, like Microsoft SQL Server. Stored procedures are application logic that are registered with a collection and repeatedly executed. Triggers are application logic that execute either before or after an insert, update (replace), or delete operation. Functions allow you to model a custom query operator and extend the core DocumentDB API query language. Unlike SQL Server, where these components are written in Transact-SQL, Azure DocumentDB stored procedures, triggers, and functions are written in JavaScript.
+
+Before we can begin writing code against Azure Cosmos DB, we must first create an Azure Cosmos DB account. Follow these steps:
+
+Sign in to the Azure portal.
+
+On the left pane, click New, Databases, and then click Azure Cosmos DB.
+
+On the New account blade, choose your programming model. For our example, click SQL (DocumentDB).
+
+Choose a unique ID for this account. It must be globally unique, such as developazure1, but then you should call yours developazure(your given name here). This will be prepended to documents.azure.com to create the URI you will use to gain access to your account.
+
+Choose the Subscription, Resource Group, and Location of your account.
+
+Click Create.
+
+Now let’s create a Visual Studio solution.
+
+Open Visual Studio 2015 or 2017.
+
+Create a New Project.
+
+Select Templates, Visual C#, Console Application.
+
+Name your project.
+
+Click OK.
+
+Open Nuget Package Manager.
+
+In the Browse tab, look for Azure DocumentDB. Add the Microsoft.Azure.DocumentDB client to your project.
+
+In order to use the code, you may need a using statement like this:
+
+Click here to view code image
+
+using Microsoft.Azure.Documents.Client;
+
+using Microsoft.Azure.Documents;
+
+using Newtonsoft.Json;
+
+Azure Cosmos DB requires two things in order to create and query documents, an account name and an access key. This should be familiar to you if you read the section on Azure Storage blobs or Azure Storage tables. You should store them in constants in your application like this:
+
+Click here to view code image
+
+private const string account = "<your account URI>";
+
+
+
+private const string key = "<your key>";
+
+Azure DocumentDB SDK also has several async calls, so we’ll create our own async function called TestDocDb. We’ll call it in the Main function of the console app.
+
+Click here to view code image
+
+static void Main(string[] args)
+
+{
+
+      TestDocDb().Wait();
+
+}
+
+You can find both of these things in Azure portal for your Azure Cosmos DB account. To create a database named SalesDB, use the following code:
+
+Click here to view code image
+
+private static async Task TestDocDb()
+
+{
+
+string id = "SalesDB";
+
+var database = _client.CreateDatabaseQuery().Where(db => db.Id == id).AsEnumerable().FirstOrDefault();
+
+
+
+if (database == null)
+
+{
+
+database = await client.CreateDatabaseAsync(new Database { Id = id });   
+
+}
+
+Now that we have a database for our sales data, we’ll want to store our customers. We’ll do that in our Customers collection. We’ll create that collection with the following code:
+
+Click here to view code image
+
+string collectionName = "Customers";
+
+var collection = client.CreateDocumentCollectionQuery(database.CollectionsLink).
+
+Where(c => c.Id == collectionName).AsEnumerable().FirstOrDefault();
+
+if (collection == null)
+
+{
+
+collection = await client.CreateDocumentCollectionAsync(database.CollectionsLink,
+
+ new DocumentCollection { Id = collectionName});   
+
+}
+
+Now let’s add a few documents to our collection. Before we can do that, let’s create a couple of plain-old CLR objects (POCOs). We want a little complexity to see what those documents look like when serialized out to Azure Cosmos DB. First we’ll create a phone number POCO:
+
+Click here to view code image
+
+public class PhoneNumber
+
+{
+
+public string CountryCode { get; set; }
+
+public string AreaCode { get; set; }
+
+public string MainNumber { get; set; }
+
+}
+
+And now we add another POCO for each customer and their phone numbers:
+
+Click here to view code image
+
+public class Customer
+
+{
+
+    public string CustomerName { get; set; }
+
+    public PhoneNumber[] PhoneNumbers { get; set; }
+
+}
+
+Now let’s instantiate a few customers:
+
+var contoso = new Customer
+
+{
+
+CustomerName = "Contoso Corp",
+
+       PhoneNumbers = new PhoneNumber[]
+
+          {
+
+               new PhoneNumber
+
+                   {
+
+                       CountryCode = "1",
+
+  AreaCode = "619",
+
+  MainNumber = "555-1212"                                          },
+
+               new PhoneNumber
+
+                   {
+
+                       CountryCode = "1",
+
+  AreaCode = "760",
+
+  MainNumber = "555-2442"                                          },
+
+           }
+
+};
+
+
+
+var wwi = new Customer
+
+{
+
+CustomerName = "World Wide Importers",
+
+       PhoneNumbers = new PhoneNumber[]
+
+          {
+
+               new PhoneNumber
+
+                   {
+
+                       CountryCode = "1",
+
+  AreaCode = "858",
+
+  MainNumber = "555-7756"                                          },
+
+               new PhoneNumber
+
+                   {
+
+                       CountryCode = "1",
+
+  AreaCode = "858",
+
+  MainNumber = "555-9142"                                          },
+
+           }
+
+};
+
+Once the customers are created, it becomes really easy to save them in Azure Cosmos DB DocumentDB. In order to serialize the object model to JSON and save it, it is really only once line of code:
+
+Click here to view code image
+
+await client.CreateDocumentAsync(collection.DocumentsLink, contoso);
+
+And, to save the other document:
+
+Click here to view code image
+
+await _client.CreateDocumentAsync(collection.DocumentsLink, wwi);
+
+Now that the documents are saved, you can log into your Cosmos DB account in the Azure portal, open Document Explorer and view them. Document Explorer is accessible on the top menu toolbar of your Cosmos DB configuration pane.
+
+Query documents
+Retrieving documents from Azure Cosmos DB DocumentDB is where the magic really happens. The SDK allows you to call a query to retrieve a JSON document and store the return in an object model. The SDK wires up any properties with the same name and data type automatically. This will sound amazing to a relational database developer who might be used to writing all of that code by hand. With Cosmos DB, the wiring up of persistence store to the object model happens without any data layer code.
+
+In addition, the main way to retrieve data from Azure Cosmos DB is through LINQ, the popular C# feature that allows developers to interact with objects, Entity Framework, XML, and SQL Server.
+
+Run Cosmos DB queries
+There are three main ways you can query documents using the Azure Cosmos DB SDK: lambda LINQ, query LINQ, and SQL (a SQL-like language that’s compatible with Cosmos DB).
+
+A query of documents using lambda LINQ looks like this:
+
+Click here to view code image
+
+var customers = client.CreateDocumentQuery<Customer>(collection.DocumentsLink).
+
+Where(c => c.CustomerName == "Contoso Corp").ToList();
+
+A query of documents using LINQ queries looks like this:
+
+Click here to view code image
+
+            var linqCustomers = from c in
+
+client.CreateDocumentQuery<Customer>(collection.DocumentsLink)
+
+
+
+                    select c;
+
+A query for documents using SQL looks like this:
+
+Click here to view code image
+
+var customers = client.CreateDocumentQuery<Customer>(collection.DocumentsLink,
+
+"SELECT * FROM Customers c WHERE c.CustomerName = 'Contoso Corp'");
+
+More Info: Documentdb Query Tutorial
+
+Azure Cosmos DB has a demo tool that will teach you how to write SQL against the hierarchal nature of JSON. It can be found here: https://www.documentdb.com/sql/demo.
+
+Create Graph API databases
+In order to create a Graph API database, you should follow the exact steps at the beginning of this objective. The difference would be that in the creation blade of Azure Cosmos DB, instead of choosing SQL as the API, choose Gremlin Graph API.
+
+Use the following code to create a document client to your new Azure Cosmos DB Graph API account:
+
+Click here to view code image
+
+using (DocumentClient client = new DocumentClient(
+
+    new Uri(endpoint),
+
+    authKey,
+
+    new ConnectionPolicy { ConnectionMode = ConnectionMode.Direct, ConnectionProtocol
+
+= Protocol.Tcp }))
+
+Once you have a client instantiated, you can create a new graph database with this code:
+
+Click here to view code image
+
+Database database = await client.CreateDatabaseIfNotExistsAsync(new Database
+
+{ Id = "graphdb" });
+
+Just like before, we need a collection for our data, so we’ll create it like this:
+
+Click here to view code image
+
+DocumentCollection graph = await client.CreateDocumentCollectionIfNotExistsAsync(
+
+    UriFactory.CreateDatabaseUri("graphdb"),
+
+    new DocumentCollection { Id = "graph" },
+
+    new RequestOptions { OfferThroughput = 1000 });
+
+Execute GraphDB queries
+GraphDB API queries are executed very similarly to the queries we looked at before. GraphDB queries are defined through a series of Gremlin steps. Here is a simple version of that query:
+
+Click here to view code image
+
+IDocumentQuery<dynamic> query = client.CreateGremlinQuery<dynamic>
+
+(graph, "g.V().count()");
+
+while (query.HasMoreResults)
+
+{
+
+    foreach (dynamic result in await query.ExecuteNextAsync())
+
+    {
+
+        Console.WriteLine($"\t {JsonConvert.SerializeObject(result)}");
+
+    }
+
+}
+
+Implement MongoDB database
+Azure Cosmos DB can be used with applications that were originally written in MongoDB. Existing MongoDB drivers are compatible with Azure Cosmos DB. Ideally, you would switch between from MongoDB to Azure Cosmos DB by just changing a connection string (after loading the documents, of course).
+
+You can even use existing MongoDB tooling with Azure Cosmos DB.
+
+Manage scaling of Cosmos DB, including managing partitioning, consistency, and RUs
+The main method for scaling performance in Azure Cosmos DB is the collection. Collections are assigned a specific amount of storage space and transactional throughput. Transactional throughput is measured in Request Units(RUs). Collections are also used to store similar documents together. An organization can choose to organize their documents into collections in any manner that logically makes sense to them. A software company might create a single collection per customer. A different company may choose to put heavy load documents in their own collection so they can scale them separately from other collections.
+
+We described sharding in the last section and when we discussed Azure Storage Tables. Sharding is a feature of Azure Cosmos DB also. We can shard automatically by using a partition key. Azure Cosmos DB will automatically create multiple partitions for us. Partitioning is completely transparent to your application. All documents with the same partition key value will always be stored on the same partition. Cosmos DB may store different partition keys on the same partition or it may not. The provisioned throughput of a collection is distributed evenly among the partitions within a collection.
+
+You can also have a single partition collection. It’s important to remember that partitioning is always done at the collection, not at the Cosmos DB account level. You can have a collection that is a single partition alongside multiple partition collections. Single partition collections have a 10GB storage limit and can only have up to 10,000 RUs. When you create them, you do not have to specify a partition key. To create a single partition collection, follow these steps:
+
+On you Cosmos DB account, click the overview tab and click Add Collection (Figure 2-21).
+
+Image
+FIGURE 2-21 Creating a collection in the Azure Portal
+
+On the Add Collection pane, name the collection and click Fixed for Storage Capacity. Notice how the partition key textbox automatically has a green check next to it indicating that it doesn’t need to be filled out.
+
+Image
+FIGURE 2-22 The Azure Portal
+
+For multiple partition collections, it is important that you choose the right partition key. A good partition key will have a high number of distinct values without being unique to each individual document. Partitioning based on geographic location, a large date range, department, or customer type is a good idea. The storage size for documents with the same partition key is 10GB. The partition key should also be in your filters frequently.
+
+A partition key is also the transaction boundary for stored procedures. Choose a key on documents that often get updated together with the same partition key value.
+
+Consistency
+Traditional relational databases have a little bit of baggage as it relates to data consistency. Users of those systems have the expectation that when they write data, all readers of that data will see the latest version of it. That strong consistency level is great for data integrity and notifying users when data changes, but creates problems with concurrency. Writers have to lock data as they write, blocking readers of the data until the write is over. This creates a line of readers waiting to read until the write is over. In most transactional applications, reads outnumber writes 10 to 1. Having writes block readers gives the readers the impression that the application is slow.
+
+This has particularly created issues when scaling out relational databases. If a write occurs on one partition and it hasn’t replicated to another partition, readers are frustrated that they are seeing bad or out of date data. It is important to note that consistency has long had an inverse relationship with concurrency.
+
+Many JSON document storage products have solved that tradeoff by having a tunable consistency model. This allows the application developer to choose between strong consistency and eventual consistency. Strong consistency slows down reads and writes while giving the best data consistency between users. Eventual consistency allows the readers to read data while writes happen on a different replica, but isn’t guaranteed to return current data. Things are faster because replicas don’t wait to get the latest updates from a different replica.
+
+In DocumentDB, there are five tunable consistency levels:
+
+Image Strong Mentioned in the previous paragraph.
+
+Image Bounded Staleness Tolerates inconsistent query results, but with a freshness guarantee that the results are at least as current as a specified period of time.
+
+Image Session The default in DocumentDB. Writers are guaranteed strong consistency on writers that they have written. Readers and other writer sessions are eventually consistent.
+
+Image Consistent Prefix Guarantees that readers do not see out of order writes. Meaning the writes may not have arrived yet, but when they do, they’ll be in the correct order.
+
+Image Eventual Mentioned in the previous paragraph.
+
+Manage multiple regions
+It is possible to globally distribute data in Azure Cosmos DB. Most people think of global distribution as an high availability/disaster recovery (HADR) scenario. Although that is a side effect in Cosmos DB, it is primarily to get data closer to the users with lower network latency. European customers consume data housed in a data center in Europe. Indian customers consume data housed in India. At this writing, there are 30 data centers that can house Cosmos DB data.
+
+Each replica will add to your Cosmos DB costs.
+
+In a single geo-location Cosmos DB collection, you cannot really see the difference in consistency choices from the previous section. Data replicates so fast that the user always sees the latest copy of the data with few exceptions. When replicating data around the globe, choosing the correct consistency level becomes more important.
+
+To choose to globally distribute your data, follow these steps:
+
+In the Azure portal, click on your Cosmos DB account.
+
+On the account blade, click Replicate data globally (Figure 2-23).
+
+Image
+FIGURE 2-23 The Replicate data globally blade
+
+In the Replicate data globally blade, select the regions to add or remove by clicking the regions on the map.
+
+Image One region is flagged as the write region. The other regions are read regions. This consolidates the writes while distributing the reads, and since reads often outnumber writes significantly, this can drastically improve the perceived performance of your application.
+
+You can now set that region for either manual or automatic failover (Figure 2-24). Automatic failover will switch the write region in order of priority.
+
+Image
+FIGURE 2-24 The Automatic Failover pane
+
+It is also possible to choose your preferred region in your application by using the DocumentDB API. The code looks like this in C#:
+
+Click here to view code image
+
+ConnectionPolicy connectionPolicy = new ConnectionPolicy();
+
+
+
+//Setting read region selection preference
+
+connectionPolicy.PreferredLocations.Add(LocationNames.WestUS); // first preference
+
+connectionPolicy.PreferredLocations.Add(LocationNames.EastUS); // second preference
+
+connectionPolicy.PreferredLocations.Add(LocationNames.NorthEurope); // third preference
+
+
+
+// initialize connection
+
+DocumentClient docClient = new DocumentClient(
+
+    accountEndPoint,
+
+    accountKey,
+
+    connectionPolicy);
+
+Implement stored procedures
+Cosmos DB collections can have stored procedures, triggers, and user defined functions (UDFs), just like traditional database engines. In SQL Server, these objects are written using T-SQL. In Cosmos DB, they are written in JavaScript. This code will be executed directly in the collection’s partition itself. Batch operations executed on the server will avoid network latency and will be fully atomic across multiple documents in that collection’s partition. Operations in a stored procedure either all succeed or none succeed.
+
+In order to create a Cosmos DB stored procedure in C#, you would use code that looked something like this.
+
+Click here to view code image
+
+var mySproc = new StoredProcedure
+
+            {
+
+                Id = "createDocs",
+
+                Body = "function(documentToCreate) {" +
+
+                  "var context = getContext();" +
+
+                  "var collection = context.getCollection();" +
+
+ "var accepted = collection.createDocument(collection.getSelfLink()," +
+
+                   "documentToCreate," +
+
+                   "function (err, documentCreated) {" +
+
+                   "if (err) throw new Error('Error oh ' + documentToCreate.Name +
+
+'- ' + err.message);" +
+
+                       "context.getResponse().setBody(documentCreated.id)" +
+
+                                "});" +
+
+                    "if (!accepted) return;" +
+
+                        "}"
+
+            };
+
+var response = await client.CreateStoredProcedureAsync(conferenceCollection.
+
+SelfLink, mySproc);
+
+This code creates a stored procedure using a string literal. It takes a document in as a parameter and saves it in the collection. It does that by using the context object inside the stored procedure.
+
+More Info: Azure Cosmos DB Stored Procedures
+
+There’s a tutorial for implementing server side objects that’s worth going through: https://docs.microsoft.com/en-us/azure/cosmos-db/programming.
+
+Access Cosmos DB from REST interface
+Cosmos DB has a REST API that provides a programmatic interface to create, query, and delete databases, collections, and documents. So far, we’ve been using the Azure Document DB SDK in C#, but it’s possible to call the REST URIs directly without the SDK. The SDK makes these calls simpler and easier to implement, but are not strictly necessary. SDKs are available for Python, JavaScript, Java, Node.js, and Xamarin. These SDKs all call the REST API underneath. Using the REST API allows you to use a language that might not have an SDK, like Elixir. Other people have created SDKs for Cosmos DB, like Swift developers for use in creating iPhone applications. If you choose other APIs, there are SDKs in even more langauges. For instance, the MongoDB API supports Golang.
+
+The REST API allows you to send HTTPS requests using GET, POST, PUT, or DELETE to a specific endpoint.
+
+More Info: Azure Cosmos DB Rest API
+
+Rest API documentation can be found here: https://docs.microsoft.com/en-us/rest/api/documentdb/.
+
+Manage Cosmos DB security
+Here are the various types of Cosmos DB security.
+
+Encryption at rest
+Encryption at rest means that all physical files used to implement Cosmos DB are encrypted on the hard drives they are using. Anyone with direct access to those files would have to unencrypt them in order to read the data. This also applies to all backups of Cosmos DB databases. There is no need for configuration of this option.
+
+Encryption in flight
+Encryption in flight is also required when using Cosmos DB. All REST URI calls are done over HTTPS. This means that anyone sniffing a network will only see encryption round trips and not clear text data.
+
+Network firewall
+Azure Cosmos DB implements an inbound firewall. This firewall is off by default and needs to be enabled. You can provide a list of IP addresses that are authorized to use Azure Cosmos DB. You can specify the IP addresses one at a time or in a range. This ensures that only an approved set of machines can access Cosmos DB. These machines will still need to provide the right access key in order to gain access. Follow these steps to enable the firewall:
+
+Navigate to your Cosmos DB account.
+
+Click Firewall.
+
+Enable the firewall and specify the current IP address range.
+
+Click Save (see Figure 2-25).
+
+Image
+FIGURE 2-25 The Cosmos DB firewall pane
+
+Users and permissions
+Azure Cosmos DB support giving access to users in the database to specific resources or using Active Directory users.
+
+Users can be granted permissions to an application resource. They can have two different access levels, either All or Read. All means they have full permission to the resource. Read means they can only read the resource, but not write or delete.
+
+More Info: Azure Users AND Permissions
+
+More information on creating permissions for database users can be found here: https://docs.microsoft.com/en-us/azure/cosmos-db/secure-access-to-data/.
+
+Active Directory
+You can use Active Directory users and give them access to the entire Cosmos DB database by using the Azure portal. Follow these steps to grant access:
+
+Click on your Cosmos DB account and click Access Control (IAM).
+
+Click Add to add a new Active Directory user.
+
+Image
+FIGURE 2-26 The Cosmos DB Add permission pane
+
+Choose the appropriate role for the user and enter the user’s name or email address (Figure 2-27).
+
+Image
+FIGURE 2-27 The Cosmos DB user role list
+
+Now you’ve given permission to another user to that database. Note that you can give them reader access which will stop them from writing over documents. This might be good for ETL accounts, business/data analysts, or report authors.
+
+SKILL 2.6: IMPLEMENT REDIS CACHING
+Redis is a key-value store, NoSQL database. Its implementation is very similar to Azure Table Storage. The main difference is Redis is very high performing by keeping the data in memory most of the time. By default, Redis also doesn’t persist the data between reboots. There are exceptions to this, but the main purpose of keeping Redis cache in memory is for fast data retrieval and fast aggregations. This allows important data to be easily accessible to an application without loading the backend data store. As a result, Redis is typically not used as a data store for an application, but used to augment the data store you’ve already selected. Imagine using Azure SQL Database as your main data repository. Your application constantly looks up sales tax for all 50 states. Some cities even have their own sales tax that’s higher than the state’s sales tax. Constantly looking this up can compete with I/O for the rest of your application’s functions. Offloading the sales tax lookup to a pinned Redis cache will not only make that lookup much faster, but will free up resources for your data repository for things like taking orders, updating addresses, awarding sales commission, and general reporting.
+
+This is just one example of how Redis can be used. Redis has many uses, but primarily it’s a temporary storage location of data that has a longer lifespan. That data needs to be expired when it’s out of date and re-populated.
+
+Azure Redis Cache is the Azure product built around Redis and offering it as a Platform-as-a-Service (PAAS) product.
+
+This skill covers how to:
+
+Image Choose a cache tier
+
+Image Implement data persistence
+
+Image Implement security and network isolation
+
+Image Tune cluster performance
+
+Image Integrate Redis caching with ASP.NET session and cache providers
+
+Choose a cache tier
+First we need to create an Azure Redis Cache account using the Azure portal.
+
+Log in to the Azure portal.
+
+Click New, Databases, Redis Cache. Click Create.
+
+In the New Redis Cache blade, specify configuration parameters (Figure 2-28).
+
+Image
+FIGURE 2-28 Azure Redis Cache Panel
+
+Choose a DNS name for your cache. It must be globally unique.
+
+Choose a Subscription, Resource group, and Location for the Redis Cache. Remember to keep it close to the application that will be using it.
+
+Choose a Pricing tier for Redis Cache.
+
+There are three tiers of Azure Redis Cache: Basic, Standard, and Premium. Basic is the cheapest tier and allows up to 53GB of Redis Cache database size. Standard has the same storage limit, but includes replication and failover with master/slave replication. This replication is automatic between two nodes. Premium increases ten times to 530GB. It also offers data persistence, meaning that data will survive power outages. It also includes much better network performance, topping out at 40,000 client connections. Obviously, the pricing increases as you move up from Basic through Premium.
+
+Implement data persistence
+Redis peristance allows you to save data to disk instead of just memory. Additionally, you can take snapshots of your data for backup purposes. This allows your Redis cache to survive hardware failure. Redis persistence is implemented through the RDB model, where data is streamed out to binary into Azure Storage blobs. Azure Redis Cache persistence is configured through the following pane shown in Figure 2-29.
+
+Image
+FIGURE 2-29 Redis data persistence
+
+On this pane, you can configure the frequency of the RDB snapshot, as well as the storage account that will be the storage target.
+
+More Info: Import/Export RDB
+
+You can also manually import and export the RDB snapshot. More information is found here: https://docs.microsoft.com/en-us/azure/redis-cache/cache-how-to-import-export-data.
+
+Implement security and network isolation
+Azure Redis Cache’s primary security mechanism is done through access keys. We’ve used access keys in Azure Storage blobs, Azure Storage tables, and Azure Cosmos DB. In addition to access keys, Azure Redis Cache offers enhanced security when you use the premium offering. This is done primarily through the Virtual Network (VNET). This allows you to hide Redis Cache behind your application and not have a public URL that is open to the internet.
+
+The VNET is configured at the bottom of the New Redis Cache pane (pictured earlier.) You can configure the virtual network when creating the Azure Redis Cache account. You cannot configure it after it has been created. Also, you can only use a VNET that exists in the same data center as your Azure Redis Cache account. Azure Redis Cache must be created in an empty subnet.
+
+When creating an Azure Redis Cache account, select Virtual Network towards the bottom. You will see the following pane shown in Figure 2-30.
+
+Image
+FIGURE 2-30 Azure Redis Cache Virtual Network pane
+
+This is where you can configure your static IP address and subnet.
+
+More Info: Virtual Networking
+
+For more information on Azure Virtual Networking, see here: https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-overview.
+
+Doing this isolates your Azure Redis Cache service behind your virtual network and keeps it from being accessed from the internet.
+
+Tune cluster performance
+Also with the premium service, you can implement a Redis Cluster. Redis clusters allow you to split the dataset among multiple nodes, allowing you to continue operations when a subset of the nodes experience failure, give more throughput, and increase memory (and there for total database) size as you increase the number of shards. Redis clustering is configured when you create the Azure Redis Cache account (Figure 2-31). The reason why Premium can store 10 times the data as the other two tiers is because clustering allows you to choose the number of nodes in the cluster, from 1 to 10.
+
+Image
+FIGURE 2-31 Redis Cache Clustering
+
+Once the cache is created, you use it just like a non-clustered cache. Redis distributes your data for you.
+
+Integrate Redis caching with ASP.NET session and cache providers
+Session state in an ASP.NET applications is traditionally stored in either memory or a SQL Server database. Session state in memory is difficult to implement if the server is a member of a server farm and the user changes which server they’re attached to. Session state would be lost in that case. Storing session state in a SQL database solves that problem, but introduces database management of performance, latency, and license management. Often databases are already under high load and don’t need the added load of managing a high amount of session state.
+
+Redis cache is an excellent place to store session state. To implement this, use the Redis Cache Session State Nuget package. Once added to the project, you just have to add the following line to your web.config file under the providers section:
+
+Click here to view code image
+
+<add name="MySessionStateStore"
+
+           host = "127.0.0.1"
+
+        port = ""
+
+        accessKey = ""
+
+        ssl = "false"
+
+        throwOnError = "true"
+
+        retryTimeoutInMilliseconds = "0"
+
+        databaseId = "0"
+
+        applicationName = ""
+
+        connectionTimeoutInMilliseconds = "5000"
+
+        operationTimeoutInMilliseconds = "5000"
+
+    />
+
+<add name="MySessionStateStore" type="Microsoft.Web.Redis.RedisSessionStateProvider"
+
+ host="127.0.0.1" accessKey="" ssl="false"/>
+
+The host attribute points to the endpoint of your Azure Redis account. ApplicationName allows multiple applications to use the same Redis database. Every other attribute is self-explanatory.
+
+There is a different Nuget packaged called the Redis Output Cache Provider. This will store page output in Redis cache for future use. It’s configured in a similar manner as the previous product.
+
+SKILL 2.7: IMPLEMENT AZURE SEARCH
+Azure Search is a Platform-as-a-Service (PAAS) offering that gives developers APIs needed to add search functionality in their applications. Primarily this mean full text search. The typical example is how Google and Bing search works. Bing doesn’t care what tense you use, it spell checks for you, and finds similar topics based on search terms. It also offers term highlighting and can ignore noise words, as well as many other search-related features. Applying these features inside your application can give your users a rich and comforting search experience.
+
+This skill covers how to:
+
+Image Create a service index
+
+Image Add data
+
+Image Search an index
+
+Image Handle Search results
+
+Create a service index
+There are several types of Azure Search accounts: free, basic, standard, and high-density. The free tier only allows 50MB of data storage and 10,000 documents. As you increase from basic to high-density, you increase how many documents you can index as well as how quickly searches return. Compute resources for Azure Search are sold through Search Units (SUs). The basic level allows 3 search units. The high-density level goes up to 36 SUs. In addition, all of the paid pricing tiers offer load-balancing over three replicas or more replicas. To create an Azure Search service, follow these steps:
+
+Log on to the Azure portal.
+
+Add a new item. Look up Azure Search Service.
+
+In the New Search Service pane, choose a unique URL, Subscription, Resource group, and Location.
+
+Image
+FIGURE 2-32 Azure Search pane
+
+Carefully choose an Azure Search pricing tier. Make a note of the search URI (your search name).search.windows.net.
+
+As you use Azure Search, you can scale it if you need more SUs or have more documents to search. On your Azure Search pane, click Scale. The Scale blade is supported in Standard level and above, not basic. From there you can choose how many replicas handle your workload and how many partitions you have. Replicas distribute workloads across multiple nodes. Partitions allow for scaling the document count as well as faster data ingestion by spanning your index over multiple Azure Search Units. Both of these are only offered in the paid service tiers.
+
+Add data
+You add data to Azure Search through creating an index. An index contains documents used by Azure Search. For instance, a hotel chain might have a document describing each hotel they own, a home builder might have a document for each house they have on the market. An index is similar to a SQL Server table and documents are similar to rows in those tables.
+
+In our examples, we’ll use C# and the Microsoft .NET Framework to add data to an index and search it. To use the .NET SDK for Azure Search with our examples, you must meet the following requirements:
+
+Image Visual Studio 2017.
+
+Image Create an Azure Search service with the Azure portal. The free version will work for these code samples.
+
+Image Download the Azure Search SDK Nuget package.
+
+Just like with our other services, we must first create a Search service client, like this:
+
+Click here to view code image
+
+string searchServiceName = "your search service name;
+
+string accesskey = "your access key"
+
+SearchServiceClient serviceClient = new SearchServiceClient(searchServiceName,
+
+new SearchCredentials(accesskey));
+
+Let’s assume we build homes and we have a POCO for the home class. That class would have properties like RetailPrice, SquareFootage, Description, and FlooringType.
+
+The home class might look like this:
+
+Click here to view code image
+
+using System;
+
+using Microsoft.Azure.Search;
+
+using Microsoft.Azure.Search.Models;
+
+using Microsoft.Spatial;
+
+using Newtonsoft.Json;
+
+
+
+// The SerializePropertyNamesAsCamelCase attribute is defined in the Azure
+
+// Search .NET SDK.
+
+// It ensures that Pascal-case property names in the model class are mapped to
+
+// camel-case field names in the index.
+
+[SerializePropertyNamesAsCamelCase]
+
+public partial class Home
+
+{
+
+    [System.ComponentModel.DataAnnotations.Key]
+
+    [IsFilterable]
+
+    public string HomeID { get; set; }
+
+
+
+    [IsFilterable, IsSortable, IsFacetable]
+
+    public double? RetailPrice { get; set; }
+
+
+
+    [IsFilterable, IsSortable, IsFacetable]
+
+    public int? SquareFootage { get; set; }
+
+
+
+    [IsSearchable]
+
+    public string Description { get; set; }
+
+
+
+    [IsFilterable, IsSortable]
+
+    public GeographyPoint Location { get; set; }
+
+}
+
+The properties all have attributes on them that tell Azure Search how to construct field definitions for them in the index. Notice how these are all public properties. Azure Search will only create definitions for public properties.
+
+First, we create an index with the following code:
+
+Click here to view code image
+
+var definition = new Index()
+
+{
+
+   Name = "homes",
+
+   Fields = FieldBuilder.BuildForType<Home>()
+
+};
+
+serviceClient.Indexes.Create(definition);
+
+This will create an index object with field objects that define the correct schema based on our POCO. The FieldBuilder class iterates over the properties of the Home POCO using reflection.
+
+First, create a batch of homes to upload.
+
+Click here to view code image
+
+var homes = new Home[]
+
+{
+
+    new Home()
+
+    {
+
+       RetailPrice = Convert.ToDouble("459999.00"),
+
+       SquareFootage = 3200,
+
+       Description = "Single floor, ranch style on 1 acre of property.  4 bedroom,
+
+       large living room with open kitchen, dining area.",
+
+       Location = GeographyPoint.Create(47.678581, -122.131577)
+
+    };
+
+Then create a batch object, declaring that you intend to upload a document:
+
+Click here to view code image
+
+ISearchIndexClient indexClient = serviceClient.Indexes.GetClient("homes");
+
+
+
+var batch = IndexBatch.Upload(homes);
+
+Then upload the document:
+
+Click here to view code image
+
+indexClient.Documents.Index(batch);
+
+Search an index
+In order to search documents, we must first declare a SearchParameters object and DocumentSearchResult object of type Home in our example.
+
+Click here to view code image
+
+SearchParameters parameters;
+
+DocumentSearchResult<Home> searchResults;
+
+Now we look for any home that has the word ranch in the document. We return only the HomeID field. We save the results.
+
+Click here to view code image
+
+parameters =
+
+    new SearchParameters()
+
+    {
+
+       Select = new[] { "SquareFootage" }
+
+    };
+
+searchResults = indexClient.Documents.Search<Home>("3200", parameters);
+
+Handle Search results
+After we have the search results saved in the results variable, we can iterate through them like this:
+
+Click here to view code image
+
+foreach (SearchResult<Home> result in searchResults.Results)
+
+{
+
+    Console.WriteLine(result.Document);
+
+}
+
+We have covered many different areas that data can be stored in Microsoft Azure. These different storage products can be overwhelming and make choosing correctly difficult.
+
+It is important to note that the same data can be stored in any of these solutions just fine, and your application will likely succeed no matter which storage product you use. You can store data in a key-value store, a document store, a graph database, a relational store, or any combination of these products. Functionally, they are very similar with similar features. There is also no specific set of problems that can only be stored in a graph database or only be stored in a relational engine. Understanding the different features, problems, advantages, and query languages will help you choose the correct data store for your application, but you will always feel uncertain that you chose the right one.
+
+Anyone who looks at your problem and definitely knows the perfect storage product is likely either trying to sell you something, only knows that product and therefore has a vested interest in choosing it, has bought in to a specific buzz word or new trend, or is underinformed about the drawbacks of their preferred product. This author’s advice is to inform yourself the best you can and make a decision while accepting the fact that every product has trade-offs.
+
+THOUGHT EXPERIMENT
+In this thought experiment, apply what you’ve learned about this skill. You can find answers to these questions in the next section.
+
+Contoso Limited creates lasers that etch patterns for processors and memory. Their customers include large chip manufacturers around the world
+
+Contoso is in the process of moving several applications to Azure. You are the data architect contracted by Contoso to help them make the good decisions for these applications regarding storage products and features. Contoso has a mobile application their sales people use to create quotes to email to their customers. The product catalog is in several languages and contains detailed product images. You are localizing a mobile application for multiple languages.
+
+How will you structure the files in Blob storage so that you can retrieve them easily?
+
+What can you do to make access to these images quick for users around the world?
+
+On a regular interval, a Contoso laser sends the shot count of how many times the laser fired to your application. The shot count is cumulative by day. Contoso built more than 500 of these lasers and distributed them around the world. Each laser has its own machine identifier. Each time the shot count is sent, it includes a time stamp. The analysts are mostly concerned with the most recent shot count sent. It’s been decided to store the shot count in Azure Table Storage.
+
+What should you use for the partition key? How many partitions should you create?
+
+How should you create the row key?
+
+How many tables should you build? What’s in each table?
+
+Contoso also wants to write a third application, a web application, that executives can use to show the relationship between customers of your company. Contoso knows that some of their customers purchase chips from other Contoso customers. Your company feels like it’s in a perfect position to examine global business relationships since it has all of the laser records that occur in the global enterprise. Your company uses a variety of relational databases, like Oracle and Microsoft SQL Server. You have heard a lot about JSON Document storage engines, like Azure Cosmos DB, and feel like it would be a perfect fit for this project. Contoso is concerned that this application will have a significant load considering the amount of data that will be processed for each laser. You’ve decided to help them by implementing Redis Cache.
+
+What are some advantages that Azure Cosmos DB has over traditional relational data stores?
+
+What are disadvantages your enterprise will face in implementing a store like this?
+
+How will your organization’s data analyst query data from Azure Cosmos DB?
+
+Where do you think Redis Cache can help them?
+
+How will Redis Cache lessen the load on their database server?
+
+What are some considerations when implementing Redis Cache?
+
+THOUGHT EXPERIMENT ANSWERS
+This section contains the solution to the thought experiment.
+
+You would consider structuring the blob hierarchy so that one of the portions of the path represented the language or region.
+
+You would consider creating a CDN on a publicly available container to cache those files locally around the world.
+
+Machine ID seems like a logical candidate for PartitionKey.
+
+Shot count time stamp, ordered descending.
+
+There might be two tables, one for the machine metadata and one for the shots. You could also make an argument for consolidating both pieces of data into one table for speed in querying.
+
+Cosmos DB will be easier to maintain because the schema is declared inside the application. As the application matures, the schema can mature. This will keep the schema fresh and new and changeable. Cosmos DB doesn’t really need a complicated data layer or an ORM, thus saving hours of development as we write and release. CosmosDB keeps the data in the same structure as the object model, keeping the data easy for developers to learn and navigate.
+
+There is a learning curve for document stores and graph stores. Traditional relational developers might have a difficult time keeping up with it.
+
+Business analysts and data analysts might need to learn a new query language in order to gain access to the data in Cosmos DB. ETL processes might need to be written to pipe document data into a traditional data store for reporting and visualizations. Otherwise the reporting burden of the application will rest on the original developers, which also may be an acceptable solution.
+
+They can cache their entire product catalog. They can cache each session so that the session can be saved before it’s committed to the database. They can cache location information, shipping information, etc.
+
+All of the above items will greatly alleviate the load of their applications. Basically, you are stopping the relational database read locks from blocking the writing transactions. Also, by caching the reads, you are stopping them from competing for I/O with the writes.
+
+Caching is memory intensive, so make sure you are using memory effectively. Caching rarely used things is not effective. Caching needs data management. Knowing when to expire cache, refresh cache, and populate cache are all things that should be thought of ahead of time.
+
+CHAPTER SUMMARY
+Image A blob container has several options for access permissions. When set to Private, all access requires credentials. When set to Public Container, no credentials are required to access the container and its blobs. When set to Public Blob, only blobs can be accessed without credentials if the full URL is known.
+
+Image To access secure containers and blobs, you can use the storage account key or shared access signatures.
+
+Image Block blobs allow you to upload, store, and download large blobs in blocks up to 4 MB each. The size of the blob can be up to 200 GB.
+
+Image You can use a blob naming convention akin to folder paths to create a logical hierarchy for blobs, which is useful for query operations.
+
+Image All file copies with Azure Storage blobs are done asynchronously.
+
+Image Table storage is a non-relational database implementation (NoSQL) following the key-value database pattern.
+
+Image Table entries each have a partition key and row key. The partition key is used to logically group rows that are related; the row key is a unique entry for the row.
+
+Image The Table service uses the partition key for distributing collections of rows across physical partitions in Azure to automatically scale out the database as needed.
+
+Image A Table storage query returns up to 1,000 records per request, and will time out after five seconds.
+
+Image Querying Table storage with both the partition and row key results in fast queries. A table scan is required for queries that do not use these keys.
+
+Image Applications can add messages to a queue programmatically using the .NET Storage Client Library or equivalent for other languages, or you can directly call the Storage API.
+
+Image Messages are stored in a storage queue for up to seven days based on the expiry setting for the message. Message expiry can be modified while the message is in the queue.
+
+Image An application can retrieve messages from a queue in batch to increase throughput and process messages in parallel.
+
+Image Each queue has a target of approximately 2,000 messages per second. You can increase this throughput by partitioning messages across multiple queues.
+
+Image You can use SAS tokens to delegate access to storage account resources without sharing the account key.
+
+Image With SAS tokens, you can generate a link to a container, blob, table, table entity, or queue. You can control the permissions granted to the resource.
+
+Image Using Shared Access Policies, you can remotely control the lifetime of a SAS token grant to one or more resources. You can extend the lifetime of the policy or cause it to expire.
+
+Image Storage Analytics metrics provide the equivalent of Windows Performance Monitor counters for storage services.
+
+Image You can determine which services to collect metrics for (Blob, Table, or Queue), whether to collect metrics for the service or API level, and whether to collect metrics by the minute or hour.
+
+Image Capacity metrics are only applicable to the Blob service.
+
+Image Storage Analytics Logging provides details about the success or failure of requests to storage services.
+
+Image Storage logs are stored in blob services for the account, in the $logs container for the service.
+
+Image You can specify up to 365 days for retention of storage metrics or logs, or you can set retention to 0 to retain metrics indefinitely. Metrics and logs are removed automatically from storage when the retention period expires.
+
+Image Storage metrics can be viewed in the management portal. Storage logs can be downloaded and viewed in a reporting tool such as Excel.
+
+Image The different editions of Azure SQL Database affect performance, SLAs, backup/restore policies, pricing, geo-replication options, and database size.
+
+Image The edition of Azure SQL Database determines the retention period for point in time restores. This should factor into your backup and restore policies.
+
+Image It is possible to create an online secondary when you configure Azure SQL Database geo-replication. It requires the Premium Edition.
+
+Image If you are migrating an existing database to the cloud, you can use the BACPACs to move schema and data into your Azure SQL database.
+
+Image Elastic pools will help you share DTUs with multiple databases on the same server.
+
+Image Sharding and scale-out can be easier to manage by using the Elastic Tools from Microsoft.
+
+Image Azure SQL Database introduces new graph features and graph query syntax.
+
+Image The different types of APIs available in Azure Cosmos DB, including table, graph, and document.
+
+Image Why developers find document storage easy to use in web, mobile, and IoT applications because saving and retrieving data does not require a complex data layer or an ORM.
+
+Image The different ways to query Azure Cosmos DB, including LINQ lambda, LINQ query, and SQL.
+
+Image Why graph databases are a great solution for certain problems, particularly showing relationships between entities.
+
+Image Cosmos DB scaling is in large part automatic and requires little to no management. The most important thing is to correctly choose which documents will go in which collections and which partition key to use with them.
+
+Image Cosmos DB supports multiple regions for disaster recovery and to keep the data close to the users for improved network latency.
+
+Image Cosmos DB has several different security mechanisms, including encryption at rest, network firewalls, and users and permissions.
+
+Image What Redis Cache is and how it can help speed up applications.
+
+Image How to choose between the different tiers of Azure Redis Cache
+
+Image The importance of data persistence in maintaining state in case of power or hardware failure.
+
+Image How to scale Azure Redis Cache for better performance or larger data sets.
+
+Image Create an Azure Search Service using the Azure portal.
+
+Image Create an Azure Search index and populate it with documents using C# and the .NET SDK.
+
+Image Search the index for a keyword and handle the results.
